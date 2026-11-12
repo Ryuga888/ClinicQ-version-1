@@ -1,0 +1,863 @@
+/* ==========================================================================
+   ClinicQ — Clinical Appointment System
+   Palette: Cream (#F3EEE3) and Ink Black (#111111)
+   Design: Classical Minimalist Editorial / Medical Ledger
+   Standard Typography, Zero AI-Slop (No gradients, no glassmorphism, no fake glow)
+   ========================================================================== */
+
+:root {
+  --color-cream: #F3EEE3;
+  --color-cream-light: #FAF8F5;
+  --color-cream-card: #FAF6EE;
+  --color-cream-dark: #E6DFD1;
+  --color-cream-muted: #DDD5C5;
+  
+  --color-ink: #111111;
+  --color-ink-secondary: #4A463F;
+  --color-ink-muted: #736E65;
+  --color-ink-border: #111111;
+  --color-hairline: rgba(17, 17, 17, 0.16);
+  --color-hairline-strong: rgba(17, 17, 17, 0.35);
+
+  --color-success: #1B4332;
+  --color-success-bg: #E3EDE6;
+  --color-danger: #7F1D1D;
+  --color-danger-bg: #F8E5E5;
+  --color-warning: #78350F;
+  --color-warning-bg: #FEF3C7;
+
+  --font-serif: "Newsreader", "Charter", "Georgia", "Times New Roman", serif;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Courier New", Courier, monospace;
+
+  --transition-quick: 0.15s ease-out;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* --------------------------------------------------------------------------
+   Accessibility & Focus
+   -------------------------------------------------------------------------- */
+:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Layout Containers
+   -------------------------------------------------------------------------- */
+.cq-container {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+
+/* --------------------------------------------------------------------------
+   Top Utility Bar & Header
+   -------------------------------------------------------------------------- */
+.cq-topbar {
+  background-color: var(--color-cream-light);
+  border-bottom: 1px solid var(--color-hairline);
+  font-size: 0.8125rem;
+  padding: 0.4rem 0;
+  color: var(--color-ink-secondary);
+}
+
+.cq-topbar-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.cq-topbar-left, .cq-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.cq-badge-session {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--color-hairline);
+  background: var(--color-cream);
+}
+
+.cq-header {
+  border-bottom: 2px solid var(--color-ink);
+  padding: 1.5rem 0 1rem;
+  background-color: var(--color-cream);
+}
+
+.cq-header-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+}
+
+.cq-brand {
+  display: flex;
+  flex-direction: column;
+}
+
+.cq-brand-title {
+  font-family: var(--font-serif);
+  font-size: 2.25rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--color-ink);
+}
+
+.cq-brand-subtitle {
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--color-ink-muted);
+  margin-top: 0.25rem;
+}
+
+/* --------------------------------------------------------------------------
+   Navigation & Role Switcher
+   -------------------------------------------------------------------------- */
+.cq-nav-bar {
+  background-color: var(--color-cream);
+  border-bottom: 1px solid var(--color-hairline-strong);
+}
+
+.cq-nav-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  overflow-x: auto;
+  gap: 1rem;
+}
+
+.cq-nav-tabs {
+  display: flex;
+  list-style: none;
+  gap: 0.25rem;
+}
+
+.cq-nav-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.85rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+  color: var(--color-ink-secondary);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  transition: color var(--transition-quick), border-color var(--transition-quick);
+  white-space: nowrap;
+}
+
+.cq-nav-tab:hover {
+  color: var(--color-ink);
+}
+
+.cq-nav-tab.active {
+  color: var(--color-ink);
+  font-weight: 600;
+  border-bottom: 2px solid var(--color-ink);
+}
+
+.cq-user-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+}
+
+/* --------------------------------------------------------------------------
+   Typography & Common Elements
+   -------------------------------------------------------------------------- */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  color: var(--color-ink);
+  letter-spacing: -0.01em;
+}
+
+h1 { font-size: 1.875rem; line-height: 1.2; margin-bottom: 0.75rem; }
+h2 { font-size: 1.5rem; line-height: 1.25; margin-bottom: 0.5rem; }
+h3 { font-size: 1.25rem; line-height: 1.3; margin-bottom: 0.4rem; }
+h4 { font-size: 1.05rem; line-height: 1.35; margin-bottom: 0.25rem; }
+
+p {
+  margin-bottom: 0.75rem;
+  color: var(--color-ink-secondary);
+  font-size: 0.9375rem;
+}
+
+.cq-lead {
+  font-family: var(--font-serif);
+  font-size: 1.15rem;
+  font-style: italic;
+  color: var(--color-ink);
+  margin-bottom: 1.25rem;
+}
+
+.cq-meta-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: var(--color-ink-muted);
+}
+
+.cq-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.cq-code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  padding: 0.1em 0.35em;
+  background-color: var(--color-cream-dark);
+  border: 1px solid var(--color-hairline);
+}
+
+/* --------------------------------------------------------------------------
+   Buttons & Inputs (Minimalist Editorial Aesthetic)
+   -------------------------------------------------------------------------- */
+.cq-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.1rem;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  border-radius: 0;
+  border: 1px solid var(--color-ink);
+  background: transparent;
+  color: var(--color-ink);
+  transition: background-color var(--transition-quick), color var(--transition-quick), border-color var(--transition-quick);
+  line-height: 1.2;
+}
+
+.cq-btn:hover:not(:disabled) {
+  background-color: var(--color-ink);
+  color: var(--color-cream);
+}
+
+.cq-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-color: var(--color-hairline-strong);
+}
+
+.cq-btn-primary {
+  background-color: var(--color-ink);
+  color: var(--color-cream);
+  border-color: var(--color-ink);
+}
+
+.cq-btn-primary:hover:not(:disabled) {
+  background-color: var(--color-cream-light);
+  color: var(--color-ink);
+}
+
+.cq-btn-secondary {
+  background-color: var(--color-cream-light);
+  border-color: var(--color-hairline-strong);
+}
+
+.cq-btn-secondary:hover:not(:disabled) {
+  background-color: var(--color-cream-dark);
+  border-color: var(--color-ink);
+  color: var(--color-ink);
+}
+
+.cq-btn-danger {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.cq-btn-danger:hover:not(:disabled) {
+  background-color: var(--color-danger);
+  color: #FFFFFF;
+}
+
+.cq-btn-sm {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.775rem;
+}
+
+.cq-btn-group {
+  display: inline-flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Form inputs */
+.cq-form-group {
+  margin-bottom: 1.15rem;
+}
+
+.cq-label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.35rem;
+  color: var(--color-ink);
+}
+
+.cq-input, .cq-select, .cq-textarea {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  color: var(--color-ink);
+  background-color: #FFFFFF;
+  border: 1px solid var(--color-hairline-strong);
+  border-radius: 0;
+  transition: border-color var(--transition-quick);
+}
+
+.cq-input:focus, .cq-select:focus, .cq-textarea:focus {
+  border-color: var(--color-ink);
+  outline: 1px solid var(--color-ink);
+}
+
+.cq-input::placeholder, .cq-textarea::placeholder {
+  color: var(--color-ink-muted);
+  opacity: 0.8;
+}
+
+.cq-textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+
+.cq-form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.cq-char-counter {
+  display: block;
+  text-align: right;
+  font-size: 0.75rem;
+  color: var(--color-ink-muted);
+  margin-top: 0.25rem;
+  font-family: var(--font-mono);
+}
+
+/* --------------------------------------------------------------------------
+   Cards, Panels & Tables
+   -------------------------------------------------------------------------- */
+.cq-card {
+  background-color: var(--color-cream-card);
+  border: 1px solid var(--color-hairline-strong);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.cq-card-header {
+  border-bottom: 1px solid var(--color-hairline);
+  padding-bottom: 0.75rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.cq-card-title {
+  font-family: var(--font-serif);
+  font-size: 1.35rem;
+  margin-bottom: 0;
+}
+
+.cq-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--color-hairline-strong);
+  background-color: #FFFFFF;
+  margin-bottom: 1.25rem;
+}
+
+.cq-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.875rem;
+}
+
+.cq-table th {
+  background-color: var(--color-cream-card);
+  font-weight: 600;
+  font-size: 0.775rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-ink);
+  border-bottom: 2px solid var(--color-ink);
+  padding: 0.75rem 0.9rem;
+}
+
+.cq-table td {
+  padding: 0.75rem 0.9rem;
+  border-bottom: 1px solid var(--color-hairline);
+  color: var(--color-ink-secondary);
+  vertical-align: middle;
+}
+
+.cq-table tr:last-child td {
+  border-bottom: none;
+}
+
+.cq-table tr:hover td {
+  background-color: var(--color-cream-light);
+}
+
+/* Status Badges */
+.cq-status {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.725rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+}
+
+.cq-status-booked {
+  color: var(--color-warning);
+  background-color: var(--color-warning-bg);
+  border-color: var(--color-warning);
+}
+
+.cq-status-completed {
+  color: var(--color-success);
+  background-color: var(--color-success-bg);
+  border-color: var(--color-success);
+}
+
+.cq-status-cancelled {
+  color: var(--color-danger);
+  background-color: var(--color-danger-bg);
+  border-color: var(--color-danger);
+}
+
+.cq-status-free {
+  color: var(--color-ink-secondary);
+  background-color: var(--color-cream-light);
+  border-color: var(--color-hairline-strong);
+}
+
+/* --------------------------------------------------------------------------
+   Notification Banner / Messages
+   -------------------------------------------------------------------------- */
+.cq-alert {
+  padding: 0.9rem 1.25rem;
+  margin-bottom: 1.25rem;
+  border-left: 3px solid var(--color-ink);
+  background-color: var(--color-cream-card);
+  font-size: 0.875rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.cq-alert-danger {
+  border-left-color: var(--color-danger);
+  background-color: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.cq-alert-success {
+  border-left-color: var(--color-success);
+  background-color: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.cq-alert-info {
+  border-left-color: var(--color-ink);
+  background-color: var(--color-cream-light);
+}
+
+/* --------------------------------------------------------------------------
+   Step Indicator for Booking (NFR-13: 4 steps or fewer)
+   -------------------------------------------------------------------------- */
+.cq-steps-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-bottom: 1px solid var(--color-hairline-strong);
+  margin-bottom: 1.5rem;
+  background: var(--color-cream-card);
+}
+
+.cq-step-item {
+  padding: 0.75rem 0.5rem;
+  text-align: center;
+  border-right: 1px solid var(--color-hairline);
+  font-size: 0.8rem;
+  color: var(--color-ink-muted);
+}
+
+.cq-step-item:last-child {
+  border-right: none;
+}
+
+.cq-step-num {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-bottom: 0.2rem;
+}
+
+.cq-step-item.active {
+  color: var(--color-ink);
+  font-weight: 600;
+  background-color: var(--color-cream-light);
+  border-bottom: 2px solid var(--color-ink);
+}
+
+.cq-step-item.completed {
+  color: var(--color-success);
+}
+
+/* Slot selection grid */
+.cq-slots-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 0.75rem;
+  margin: 1.25rem 0;
+}
+
+.cq-slot-card {
+  border: 1px solid var(--color-hairline-strong);
+  padding: 0.75rem 0.5rem;
+  text-align: center;
+  cursor: pointer;
+  background-color: #FFFFFF;
+  transition: background-color var(--transition-quick), border-color var(--transition-quick);
+}
+
+.cq-slot-card:hover:not(.booked):not(.selected) {
+  border-color: var(--color-ink);
+  background-color: var(--color-cream);
+}
+
+.cq-slot-card.selected {
+  background-color: var(--color-ink);
+  color: var(--color-cream);
+  border-color: var(--color-ink);
+}
+
+.cq-slot-card.booked {
+  background-color: var(--color-cream-muted);
+  color: var(--color-ink-muted);
+  border-color: var(--color-hairline);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.cq-slot-time {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 600;
+  display: block;
+}
+
+.cq-slot-badge {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 0.25rem;
+  display: block;
+}
+
+/* --------------------------------------------------------------------------
+   Modal / Sheet (Classical Minimalist Overlay)
+   -------------------------------------------------------------------------- */
+.cq-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(17, 17, 17, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1.5rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-quick);
+}
+
+.cq-modal-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.cq-modal-dialog {
+  background: var(--color-cream-card);
+  border: 2px solid var(--color-ink);
+  width: 100%;
+  max-width: 580px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 2rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+}
+
+.cq-modal-header {
+  border-bottom: 1px solid var(--color-hairline);
+  padding-bottom: 0.75rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* --------------------------------------------------------------------------
+   Doctor Card in Patient Flow
+   -------------------------------------------------------------------------- */
+.cq-doctor-selector {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.cq-doc-item {
+  border: 1px solid var(--color-hairline-strong);
+  padding: 1.15rem;
+  background-color: #FFFFFF;
+  cursor: pointer;
+  transition: border-color var(--transition-quick), background-color var(--transition-quick);
+}
+
+.cq-doc-item:hover {
+  border-color: var(--color-ink);
+  background-color: var(--color-cream-light);
+}
+
+.cq-doc-item.selected {
+  border: 2px solid var(--color-ink);
+  background-color: var(--color-cream-card);
+}
+
+.cq-doc-name {
+  font-family: var(--font-serif);
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-bottom: 0.2rem;
+}
+
+.cq-doc-spec {
+  font-size: 0.8125rem;
+  color: var(--color-ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+.cq-doc-bio {
+  font-size: 0.85rem;
+  color: var(--color-ink-secondary);
+}
+
+/* --------------------------------------------------------------------------
+   Quick Demo Switcher Bar (For testing roles and flows)
+   -------------------------------------------------------------------------- */
+.cq-demo-bar {
+  background: var(--color-ink);
+  color: var(--color-cream);
+  padding: 0.4rem 1.25rem;
+  font-size: 0.75rem;
+}
+
+.cq-demo-inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.cq-demo-pills {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.cq-demo-btn {
+  background: transparent;
+  color: var(--color-cream);
+  border: 1px solid rgba(243, 238, 227, 0.3);
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  cursor: pointer;
+  border-radius: 0;
+  transition: background-color var(--transition-quick);
+}
+
+.cq-demo-btn:hover {
+  background: rgba(243, 238, 227, 0.2);
+  border-color: var(--color-cream);
+}
+
+/* --------------------------------------------------------------------------
+   Footer
+   -------------------------------------------------------------------------- */
+.cq-footer {
+  margin-top: auto;
+  border-top: 1px solid var(--color-hairline);
+  background-color: var(--color-cream-light);
+  padding: 1.5rem 0;
+  font-size: 0.8125rem;
+  color: var(--color-ink-muted);
+}
+
+.cq-footer-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+/* --------------------------------------------------------------------------
+   Print Stylesheet (FR-4.4: Print-friendly layout)
+   -------------------------------------------------------------------------- */
+@media print {
+  body {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+  }
+
+  .cq-topbar,
+  .cq-nav-bar,
+  .cq-demo-bar,
+  .cq-user-actions,
+  .cq-btn,
+  .cq-footer,
+  .no-print {
+    display: none !important;
+  }
+
+  .cq-container {
+    max-width: 100% !important;
+    padding: 0 !important;
+  }
+
+  .cq-card {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+  }
+
+  .cq-table-wrapper {
+    border: 1px solid #000000 !important;
+  }
+
+  .cq-table th {
+    background: #EEEEEE !important;
+    color: #000000 !important;
+    border-bottom: 1px solid #000000 !important;
+  }
+
+  .cq-table td {
+    border-bottom: 1px solid #CCCCCC !important;
+    color: #000000 !important;
+  }
+
+  .cq-header {
+    border-bottom: 2px solid #000000 !important;
+    padding: 0 0 1rem 0 !important;
+    margin-bottom: 1.5rem !important;
+  }
+
+  .cq-print-title {
+    display: block !important;
+    font-size: 1.5rem !important;
+    font-weight: bold !important;
+    margin-bottom: 0.5rem !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Responsive (NFR-14: Usable from 360px wide)
+   -------------------------------------------------------------------------- */
+@media (max-width: 640px) {
+  .cq-brand-title {
+    font-size: 1.75rem;
+  }
+  
+  .cq-header-inner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .cq-topbar-inner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .cq-steps-bar {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .cq-step-item:nth-child(2) {
+    border-right: none;
+  }
+
+  .cq-step-item:nth-child(1), .cq-step-item:nth-child(2) {
+    border-bottom: 1px solid var(--color-hairline);
+  }
+
+  .cq-modal-dialog {
+    padding: 1.25rem;
+  }
+}

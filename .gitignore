@@ -1,0 +1,22 @@
+# OS Metadata
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor & IDE Directories
+.vscode/
+.idea/
+
+# Node / JS
+node_modules/
+npm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# ClinicQ Agent local logs
+.agent/

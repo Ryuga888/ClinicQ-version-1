@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ClinicQ &mdash; Outpatient Appointment Register</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Top Utility Bar -->
+  <div class="cq-topbar no-print">
+    <div class="cq-container cq-topbar-inner">
+      <div class="cq-topbar-left">
+        <span>Clinic Register System &bull; Local Outpatient Schedule</span>
+      </div>
+      <div class="cq-topbar-right">
+        <span id="session-container" style="display: none;">
+          Session Inactivity: <span id="session-timer" class="cq-badge-session">30:00</span>
+        </span>
+        <span id="user-badge" class="cq-tabular" style="font-weight: 500;">Guest</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Primary Header -->
+  <header class="cq-header">
+    <div class="cq-container cq-header-inner">
+      <div class="cq-brand">
+        <span class="cq-brand-title">ClinicQ</span>
+        <span class="cq-brand-subtitle">Outpatient Appointment & Schedule Register</span>
+      </div>
+      <div id="auth-actions-header" class="cq-user-actions no-print">
+        <!-- Populated dynamically: Logout button or Login link -->
+      </div>
+    </div>
+  </header>
+
+  <!-- Navigation Bar (Role-Aware Tabs) -->
+  <nav class="cq-nav-bar no-print" id="main-nav" style="display: none;" aria-label="Main Navigation">
+    <div class="cq-container cq-nav-inner">
+      <ul class="cq-nav-tabs" id="nav-tabs-list">
+        <!-- Rendered based on logged-in role -->
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Main Content Area -->
+  <main class="cq-container" style="padding-top: 1.75rem; padding-bottom: 3rem;">
+
+    <!-- System Global Alert Banner -->
+    <div id="system-alert" class="cq-alert no-print" style="display: none;" role="alert">
+      <span id="system-alert-msg"></span>
+      <button type="button" class="cq-btn cq-btn-sm" onclick="app.closeAlert()">&times;</button>
+    </div>
+
+    <!-- ====================================================================
+         SCREEN 1: UI-1 Register and Login (FR-1.1, FR-1.2, FR-1.3, NFR-12)
+         ==================================================================== -->
+    <section id="view-auth" class="cq-view" style="display: none;">
+      <div style="max-width: 480px; margin: 2rem auto;">
+        
+        <div class="cq-card">
+          <div class="cq-card-header">
+            <h2 class="cq-card-title" id="auth-view-title">Portal Sign In</h2>
+            <div class="cq-btn-group">
+              <button type="button" class="cq-btn cq-btn-sm cq-btn-secondary" id="tab-login-btn" onclick="app.setAuthTab('login')">Sign In</button>
+              <button type="button" class="cq-btn cq-btn-sm cq-btn-secondary" id="tab-register-btn" onclick="app.setAuthTab('register')">New Patient</button>
+            </div>
+          </div>
+
+          <!-- Failed login alert: generic message (FR-1.2) / lockout (NFR-12) -->
+          <div id="auth-error" class="cq-alert cq-alert-danger" style="display: none;" role="alert">
+            <span id="auth-error-msg">Invalid email or password.</span>
+          </div>
+
+          <!-- Sign In Form -->
+          <form id="form-login" onsubmit="app.handleLogin(event)">
+            <div class="cq-form-group">
+              <label class="cq-label" for="login-email">Email Address</label>
+              <input type="email" id="login-email" class="cq-input" required placeholder="e.g. admin@clinicq.local" autocomplete="username">
+            </div>
+
+            <div class="cq-form-group">
+              <label class="cq-label" for="login-password">Password</label>
+              <input type="password" id="login-password" class="cq-input" required placeholder="Enter password" autocomplete="current-password">
+            </div>
+
+            <div style="margin-top: 1.5rem;">
+              <button type="submit" class="cq-btn cq-btn-primary" style="width: 100%;">Sign In</button>
+            </div>
+
+            <div style="margin-top: 1.25rem; font-size: 0.8rem; color: var(--color-ink-muted); border-top: 1px solid var(--color-hairline); padding-top: 0.75rem;">
+              <p>Default installed administrator:</p>
+              <div style="font-family: var(--font-mono); margin-top: 0.25rem;">Email: <strong>admin@clinicq.local</strong> &bull; Pwd: <strong>admin</strong></div>
+            </div>
+          </form>
+
+          <!-- Register Form (FR-1.1: Name, Email, Phone, Password) -->
+          <form id="form-register" style="display: none;" onsubmit="app.handleRegister(event)">
+            <div class="cq-form-group">
+              <label class="cq-label" for="reg-name">Full Name</label>
+              <input type="text" id="reg-name" class="cq-input" required placeholder="e.g. John Doe">
+            </div>
+
+            <div class="cq-form-group">
+              <label class="cq-label" for="reg-email">Email Address (Must be unique)</label>
+              <input type="email" id="reg-email" class="cq-input" required placeholder="john@example.com">
+            </div>
+
+            <div class="cq-form-group">
+              <label class="cq-label" for="reg-phone">Contact Phone Number</label>
+              <input type="tel" id="reg-phone" class="cq-input" required placeholder="+1-555-0155">
+            </div>
+
+            <div class="cq-form-group">
+              <label class="cq-label" for="reg-password">Password</label>
+              <input type="password" id="reg-password" class="cq-input" required placeholder="Create secure password" minlength="4">
+            </div>
+
+            <div style="margin-top: 1.5rem;">
+              <button type="submit" class="cq-btn cq-btn-primary" style="width: 100%;">Create Patient Account</button>
+            </div>
+          </form>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         SCREEN 2: UI-2 Find a Doctor & Book Slot (Patient)
+         (FR-3.1, FR-3.2, FR-3.3, FR-3.4, FR-3.6, FR-3.8, NFR-13)
+         ==================================================================== -->
+    <section id="view-find-doctor" class="cq-view" style="display: none;">
+      
+      <!-- 4-Step Indicator (NFR-13: Book in 4 steps or fewer) -->
+      <div class="cq-steps-bar" aria-label="Booking steps">
+        <div class="cq-step-item" id="step-ind-1">
+          <span class="cq-step-num">Step 1</span>
+          <span>Select Doctor & Date</span>
+        </div>
+        <div class="cq-step-item" id="step-ind-2">
+          <span class="cq-step-num">Step 2</span>
+          <span>Choose Free Slot</span>
+        </div>
+        <div class="cq-step-item" id="step-ind-3">
+          <span class="cq-step-num">Step 3</span>
+          <span>Review & Confirm</span>
+        </div>
+        <div class="cq-step-item" id="step-ind-4">
+          <span class="cq-step-num">Step 4</span>
+          <span>Booking Confirmed</span>
+        </div>
+      </div>
+
+      <!-- Step 1 & 2: Doctor Selection and Date -->
+      <div class="cq-card" id="booking-selection-panel">
+        <div class="cq-card-header">
+          <div>
+            <h2 class="cq-card-title">Book an Appointment</h2>
+            <p style="margin-bottom: 0;">Select a consulting physician and appointment date.</p>
+          </div>
+          <div>
+            <label class="cq-label" for="patient-booking-date">Consultation Date:</label>
+            <input type="date" id="patient-booking-date" class="cq-input cq-tabular" onchange="app.handleDateOrDoctorChange()" style="width: auto;">
+          </div>
+        </div>
+
+        <!-- Doctor Cards Grid -->
+        <label class="cq-meta-label">1. Choose Physician</label>
+        <div class="cq-doctor-selector" id="patient-doctor-list" style="margin-top: 0.5rem;">
+          <!-- Rendered dynamically -->
+        </div>
+
+        <div id="no-doctors-notice" style="display: none; padding: 2rem; text-align: center; color: var(--color-ink-muted); font-style: italic; border: 1px dashed var(--color-hairline-strong); background: #FFFFFF; margin-bottom: 1.5rem;">
+          No doctor accounts have been configured yet. Clinic administrator must register physicians and generate working slots first.
+        </div>
+
+        <!-- Available Slots Grid (FR-3.1) -->
+        <div id="patient-slots-container" style="margin-top: 1.5rem; display: none;">
+          <div style="display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid var(--color-hairline); padding-bottom: 0.5rem;">
+            <label class="cq-meta-label">2. Available Slots for Selected Date</label>
+            <span id="slots-count-label" class="cq-tabular" style="font-size: 0.8rem; color: var(--color-ink-muted);"></span>
+          </div>
+
+          <div class="cq-slots-grid" id="slots-grid-list">
+            <!-- Rendered dynamically -->
+          </div>
+
+          <div id="no-slots-notice" style="display: none; padding: 1.5rem 0; text-align: center; color: var(--color-ink-muted); font-style: italic;">
+            No free appointment slots available for this doctor on the selected date.
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3: Confirmation Summary Box -->
+      <div class="cq-card" id="booking-review-panel" style="display: none;">
+        <div class="cq-card-header">
+          <h2 class="cq-card-title">3. Confirm Your Booking</h2>
+          <span class="cq-status cq-status-booked">Pending Confirmation</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.25rem; margin-bottom: 1.5rem;">
+          <div>
+            <span class="cq-meta-label">Physician</span>
+            <div id="review-doc-name" style="font-weight: 600; font-size: 1.1rem; margin-top: 0.2rem;"></div>
+            <div id="review-doc-spec" style="font-size: 0.85rem; color: var(--color-ink-muted);"></div>
+          </div>
+          <div>
+            <span class="cq-meta-label">Date & Time</span>
+            <div id="review-datetime" class="cq-tabular" style="font-weight: 600; font-size: 1.1rem; margin-top: 0.2rem;"></div>
+            <div id="review-duration" style="font-size: 0.85rem; color: var(--color-ink-muted);"></div>
+          </div>
+          <div>
+            <span class="cq-meta-label">Patient Record</span>
+            <div id="review-patient-name" style="font-weight: 600; font-size: 1.1rem; margin-top: 0.2rem;"></div>
+            <div id="review-patient-phone" class="cq-tabular" style="font-size: 0.85rem; color: var(--color-ink-muted);"></div>
+          </div>
+        </div>
+
+        <div class="cq-btn-group">
+          <button type="button" class="cq-btn cq-btn-primary" id="btn-confirm-booking" onclick="app.confirmBooking()">Confirm Appointment (Step 3 &rarr; 4)</button>
+          <button type="button" class="cq-btn cq-btn-secondary" onclick="app.cancelBookingReview()">Change Selection</button>
+        </div>
+      </div>
+
+      <!-- Step 4: Confirmed Success Receipt (FR-3.2) -->
+      <div class="cq-card" id="booking-confirmed-panel" style="display: none; border-left: 4px solid var(--color-success);">
+        <div class="cq-card-header">
+          <div>
+            <h2 class="cq-card-title" style="color: var(--color-success);">Appointment Confirmed</h2>
+            <p style="margin-bottom: 0;">Your consultation has been reserved in the clinic registry.</p>
+          </div>
+          <span class="cq-status cq-status-completed">Booked</span>
+        </div>
+
+        <div style="background-color: #FFFFFF; border: 1px solid var(--color-hairline); padding: 1.25rem; margin-bottom: 1.5rem;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
+            <div>
+              <span class="cq-meta-label">Reference ID</span>
+              <div id="confirmed-ref-id" class="cq-code" style="margin-top: 0.25rem; font-size: 1rem; font-weight: bold;"></div>
+            </div>
+            <div>
+              <span class="cq-meta-label">Doctor</span>
+              <div id="confirmed-doc-name" style="font-weight: 600; margin-top: 0.25rem;"></div>
+            </div>
+            <div>
+              <span class="cq-meta-label">Date & Time</span>
+              <div id="confirmed-datetime" class="cq-tabular" style="font-weight: 600; margin-top: 0.25rem;"></div>
+            </div>
+            <div>
+              <span class="cq-meta-label">Clinic Location</span>
+              <div style="margin-top: 0.25rem;">Consultation Suite</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cq-btn-group">
+          <button type="button" class="cq-btn cq-btn-primary" onclick="app.navigateTo('patient-appointments')">View My Appointments</button>
+          <button type="button" class="cq-btn cq-btn-secondary" onclick="app.resetBookingFlow()">Book Another Slot</button>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ====================================================================
+         SCREEN 3: UI-3 My Appointments (Patient)
+         (FR-3.5, FR-3.6, FR-3.7, NFR-7)
+         ==================================================================== -->
+    <section id="view-patient-appointments" class="cq-view" style="display: none;">
+      <div class="cq-card">
+        <div class="cq-card-header">
+          <div>
+            <h2 class="cq-card-title">My Consultation History</h2>
+            <p style="margin-bottom: 0;">View your active reservations and past clinical visits.</p>
+          </div>
+          <button type="button" class="cq-btn cq-btn-sm cq-btn-primary" onclick="app.navigateTo('find-doctor')">+ Book New Slot</button>
+        </div>
+
+        <div class="cq-table-wrapper">
+          <table class="cq-table" aria-label="Patient Appointments List">
+            <thead>
+              <tr>
+                <th>Ref ID</th>
+                <th>Doctor</th>
+                <th>Specialization</th>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Status</th>
+                <th style="text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="patient-appointments-table-body">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
+
+        <div id="no-patient-appointments" style="display: none; padding: 2rem; text-align: center; color: var(--color-ink-muted); font-style: italic;">
+          You currently have no booked appointments. Use the booking portal to schedule a consultation.
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         SCREEN 4: UI-4 My Schedule (Doctor)
+         (FR-4.1, FR-4.2, FR-4.3, FR-5.1, FR-5.2)
+         ==================================================================== -->
+    <section id="view-doctor-schedule" class="cq-view" style="display: none;">
+      <div class="cq-card">
+        <div class="cq-card-header">
+          <div>
+            <h2 class="cq-card-title" id="doctor-schedule-heading">Clinician Daily Roster</h2>
+            <p style="margin-bottom: 0;">Appointments assigned to your clinical schedule.</p>
+          </div>
+          <div>
+            <label class="cq-label" for="doc-filter-date">Schedule Date:</label>
+            <input type="date" id="doc-filter-date" class="cq-input cq-tabular" onchange="app.renderDoctorSchedule()" style="width: auto;">
+          </div>
+        </div>
+
+        <div class="cq-table-wrapper">
+          <table class="cq-table" aria-label="Doctor Appointments Table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Patient Name</th>
+                <th>Patient Phone</th>
+                <th>Status</th>
+                <th>Clinical Notes</th>
+                <th style="text-align: right;">Status Action</th>
+              </tr>
+            </thead>
+            <tbody id="doctor-schedule-table-body">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
+
+        <div id="no-doctor-appointments" style="display: none; padding: 2rem; text-align: center; color: var(--color-ink-muted); font-style: italic;">
+          No scheduled patient appointments for this date.
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         SCREEN 5: UI-5 Doctors and Slot Generator (Admin)
+         (FR-1.5, FR-2.1, FR-2.2, FR-2.3, FR-2.4)
+         ==================================================================== -->
+    <section id="view-admin-doctors" class="cq-view" style="display: none;">
+      
+      <!-- Doctor Profiles Management -->
+      <div class="cq-card">
+        <div class="cq-card-header">
+          <div>
+            <h2 class="cq-card-title">Doctor Rosters & Profiles</h2>
+            <p style="margin-bottom: 0;">Create and manage physician credentials and specialties (FR-1.5, FR-2.1).</p>
+          </div>
+          <button type="button" class="cq-btn cq-btn-sm cq-btn-primary" onclick="app.openNewDoctorModal()">+ Add New Physician</button>
+        </div>
+
+        <div class="cq-table-wrapper">
+          <table class="cq-table" aria-label="Physician List">
+            <thead>
+              <tr>
+                <th>Physician Name</th>
+                <th>Specialization</th>
+                <th>Email Account</th>
+                <th>Phone</th>
+                <th style="text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="admin-doctors-table-body">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
+
+        <div id="no-admin-doctors" style="display: none; padding: 1.5rem; text-align: center; color: var(--color-ink-muted); font-style: italic;">
+          No doctors configured. Click "+ Add New Physician" above to create a doctor account.
+        </div>
+      </div>
+
+      <!-- Slot Generator (FR-2.2, FR-2.3) -->
+      <div class="cq-card">
+        <div class="cq-card-header">
+          <div>
+            <h2 class="cq-card-title">Slot Generator Engine</h2>
+            <p style="margin-bottom: 0;">Generate fixed-length slots across date ranges (refuses overlaps & past times).</p>
+          </div>
+        </div>
+
+        <form id="form-generate-slots" onsubmit="app.handleGenerateSlots(event)">
+          <div class="cq-form-row">
+            <div class="cq-form-group">
+              <label class="cq-label" for="gen-doctor-select">Select Doctor</label>
+              <select id="gen-doctor-select" class="cq-select" required>
+                <!-- Populated dynamically -->
+              </select>
+            </div>
+
+            <div class="cq-form-group">
+              <label class="cq-label" for="gen-start-date">Start Date</label>
+              <input type="date" id="gen-start-date" class="cq-input cq-tabular" required>
+            </div>
+
+            <div class="cq-form-group">
+              <label class="cq-label" for="gen-end-date">End Date</label>
+              <input type="date" id="gen-end-date" class="cq-input cq-tabular" required>
+            </div>
+          </div>
+
+          <div class="cq-form-row">
+            <div class="cq-form-group">
+              <label class="cq-label" for="gen-start-time">Daily Start Time</label>
+              <input type="time" id="gen-start-time" class="cq-input cq-tabular" required value="09:00">
+            </div>
+
+            <div class="cq-form-group">
+              <label class="cq-label" for="gen-end-time">Daily End Time</label>
+              <input type="time" id="gen-end-time" class="cq-input cq-tabular" required value="17:00">
+            </div>
+
+            <div class="cq-form-group">
+              <label class="cq-label" for="gen-slot-length">Slot Duration</label>
+              <select id="gen-slot-length" class="cq-select" required>
+                <option value="15">15 Minutes</option>
+                <option value="20">20 Minutes</option>
+                <option value="30" selected>30 Minutes</option>
+                <option value="45">45 Minutes</option>
+                <option value="60">60 Minutes</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="margin-top: 1rem;">
+            <button type="submit" class="cq-btn cq-btn-primary">Generate Slots</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Manage & Remove Free Slots (FR-2.4) -->
+      <div class="cq-card">
+        <div class="cq-card-header">
+          <div>
+            <h2 class="cq-card-title">Manage Unbooked Slots</h2>
+            <p style="margin-bottom: 0;">Remove free slots with no active patient booking (FR-2.4).</p>
+          </div>
+          <div>
+            <label class="cq-label" for="admin-slot-filter-doc">Filter by Doctor:</label>
+            <select id="admin-slot-filter-doc" class="cq-select" onchange="app.renderAdminSlotsTable()" style="width: auto;">
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+        </div>
+
+        <div class="cq-table-wrapper">
+          <table class="cq-table" aria-label="Unbooked Slots Management">
+            <thead>
+              <tr>
+                <th>Slot ID</th>
+                <th>Doctor</th>
+                <th>Date</th>
+                <th>Time Window</th>
+                <th>Status</th>
+                <th style="text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="admin-slots-table-body">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ====================================================================
+         SCREEN 6: UI-6 All Appointments (Admin)
+         (FR-4.4, FR-4.5)
+         ==================================================================== -->
+    <section id="view-admin-all-appointments" class="cq-view" style="display: none;">
+      
+      <!-- Print Header (Visible only when printed) -->
+      <div class="cq-print-title" style="display: none;">
+        <h2>ClinicQ &bull; Master Daily Appointment Registry</h2>
+        <p id="print-meta-info" class="cq-tabular" style="font-size: 0.85rem; margin-top: 0.25rem;"></p>
+      </div>
+
+      <div class="cq-card">
+        <div class="cq-card-header no-print">
+          <div>
+            <h2 class="cq-card-title">Master Appointment Register</h2>
+            <p style="margin-bottom: 0;">Clinic-wide appointments filterable by date and clinician.</p>
+          </div>
+          <div style="display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap;">
+            <div>
+              <label class="cq-label" for="admin-appt-filter-date">Date:</label>
+              <input type="date" id="admin-appt-filter-date" class="cq-input cq-tabular" onchange="app.renderAdminAllAppointments()" style="width: auto;">
+            </div>
+            <div>
+              <label class="cq-label" for="admin-appt-filter-doc">Doctor:</label>
+              <select id="admin-appt-filter-doc" class="cq-select" onchange="app.renderAdminAllAppointments()" style="width: auto;">
+                <option value="ALL">All Clinicians</option>
+                <!-- Populated dynamically -->
+              </select>
+            </div>
+            <button type="button" class="cq-btn cq-btn-secondary" onclick="window.print()" title="Print physical clinic register">
+              Print Register
+            </button>
+          </div>
+        </div>
+
+        <div class="cq-table-wrapper">
+          <table class="cq-table" aria-label="Master Clinic Appointments">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Doctor</th>
+                <th>Patient</th>
+                <th>Contact</th>
+                <th>Status</th>
+                <th class="no-print" style="text-align: right;">Admin Action</th>
+              </tr>
+            </thead>
+            <tbody id="admin-all-appointments-table-body">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
+
+        <div id="no-admin-appointments" style="display: none; padding: 2rem; text-align: center; color: var(--color-ink-muted); font-style: italic;">
+          No appointments recorded matching the selected filter criteria.
+        </div>
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         SCREEN 7: UI-7 Audit Log (Admin)
+         (FR-6.1, FR-6.2, FR-6.3)
+         ==================================================================== -->
+    <section id="view-admin-audit" class="cq-view" style="display: none;">
+      <div class="cq-card">
+        <div class="cq-card-header">
+          <div>
+            <h2 class="cq-card-title">Security & Clinical Audit Log</h2>
+            <p style="margin-bottom: 0;">Immutable append-only record of sensitive actions, ordered newest first (FR-6.1 &ndash; FR-6.3).</p>
+          </div>
+          <span class="cq-status cq-status-completed">Append-Only Active</span>
+        </div>
+
+        <div class="cq-table-wrapper">
+          <table class="cq-table" aria-label="Audit Log Table">
+            <thead>
+              <tr>
+                <th>Timestamp (UTC)</th>
+                <th>User / Operator</th>
+                <th>Action</th>
+                <th>Target</th>
+                <th>Operational Details</th>
+              </tr>
+            </thead>
+            <tbody id="admin-audit-table-body">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ====================================================================
+       MODALS & DRAWERS
+       ==================================================================== -->
+
+  <!-- Consultation Notes Modal (FR-5.1, FR-5.2) strictly for treating doctor -->
+  <div id="modal-notes" class="cq-modal-backdrop no-print" role="dialog" aria-modal="true" aria-labelledby="modal-notes-title">
+    <div class="cq-modal-dialog">
+      <div class="cq-modal-header">
+        <h3 id="modal-notes-title" class="cq-card-title">Consultation Clinical Notes</h3>
+        <button type="button" class="cq-btn cq-btn-sm" onclick="app.closeNotesModal()">&times;</button>
+      </div>
+      <p style="font-size: 0.8rem; color: var(--color-ink-muted); margin-bottom: 1rem;">
+        Confidential medical record. Visible <strong>exclusively</strong> to the treating clinician (FR-5.2). Patients and administrators cannot view this data.
+      </p>
+
+      <form onsubmit="app.handleSaveNote(event)">
+        <input type="hidden" id="note-appointment-id">
+        <div class="cq-form-group">
+          <label class="cq-label" for="note-text-content">Clinical Assessment & Plan (Max 2,000 characters)</label>
+          <textarea id="note-text-content" class="cq-textarea" maxlength="2000" oninput="app.updateNoteCharCount()" placeholder="Enter clinical observations, diagnoses, or prescriptions..."></textarea>
+          <span class="cq-char-counter" id="note-char-counter">0 / 2000</span>
+        </div>
+
+        <div class="cq-btn-group" style="justify-content: flex-end;">
+          <button type="button" class="cq-btn cq-btn-secondary" onclick="app.closeNotesModal()">Cancel</button>
+          <button type="submit" class="cq-btn cq-btn-primary">Save Confidential Note</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Create Doctor Account Modal (FR-1.5, FR-2.1) -->
+  <div id="modal-new-doctor" class="cq-modal-backdrop no-print" role="dialog" aria-modal="true" aria-labelledby="modal-new-doc-title">
+    <div class="cq-modal-dialog">
+      <div class="cq-modal-header">
+        <h3 id="modal-new-doc-title" class="cq-card-title">Add Clinician Roster Account</h3>
+        <button type="button" class="cq-btn cq-btn-sm" onclick="app.closeNewDoctorModal()">&times;</button>
+      </div>
+
+      <form onsubmit="app.handleCreateDoctor(event)">
+        <div class="cq-form-group">
+          <label class="cq-label" for="newdoc-name">Doctor Full Name</label>
+          <input type="text" id="newdoc-name" class="cq-input" required placeholder="e.g. Dr. Jane Watson">
+        </div>
+
+        <div class="cq-form-group">
+          <label class="cq-label" for="newdoc-spec">Specialization</label>
+          <input type="text" id="newdoc-spec" class="cq-input" required placeholder="e.g. Cardiology">
+        </div>
+
+        <div class="cq-form-group">
+          <label class="cq-label" for="newdoc-email">Clinician Email</label>
+          <input type="email" id="newdoc-email" class="cq-input" required placeholder="jane.watson@clinicq.local">
+        </div>
+
+        <div class="cq-form-group">
+          <label class="cq-label" for="newdoc-phone">Phone Number</label>
+          <input type="tel" id="newdoc-phone" class="cq-input" required placeholder="+1-555-0188">
+        </div>
+
+        <div class="cq-form-group">
+          <label class="cq-label" for="newdoc-password">Temporary Initial Password</label>
+          <input type="password" id="newdoc-password" class="cq-input" required value="doctor" placeholder="Password">
+        </div>
+
+        <div class="cq-btn-group" style="justify-content: flex-end; margin-top: 1.5rem;">
+          <button type="button" class="cq-btn cq-btn-secondary" onclick="app.closeNewDoctorModal()">Cancel</button>
+          <button type="submit" class="cq-btn cq-btn-primary">Create Doctor Profile</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Doctor Profile Modal (FR-2.1) -->
+  <div id="modal-edit-doctor" class="cq-modal-backdrop no-print" role="dialog" aria-modal="true" aria-labelledby="modal-edit-doc-title">
+    <div class="cq-modal-dialog">
+      <div class="cq-modal-header">
+        <h3 id="modal-edit-doc-title" class="cq-card-title">Edit Physician Profile</h3>
+        <button type="button" class="cq-btn cq-btn-sm" onclick="app.closeEditDoctorModal()">&times;</button>
+      </div>
+
+      <form onsubmit="app.handleUpdateDoctor(event)">
+        <input type="hidden" id="editdoc-id">
+        <div class="cq-form-group">
+          <label class="cq-label" for="editdoc-name">Doctor Name</label>
+          <input type="text" id="editdoc-name" class="cq-input" required>
+        </div>
+
+        <div class="cq-form-group">
+          <label class="cq-label" for="editdoc-spec">Specialization</label>
+          <input type="text" id="editdoc-spec" class="cq-input" required>
+        </div>
+
+        <div class="cq-btn-group" style="justify-content: flex-end; margin-top: 1.5rem;">
+          <button type="button" class="cq-btn cq-btn-secondary" onclick="app.closeEditDoctorModal()">Cancel</button>
+          <button type="submit" class="cq-btn cq-btn-primary">Save Profile Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="cq-footer no-print">
+    <div class="cq-container cq-footer-inner">
+      <span>ClinicQ v1.0 &bull; Conforms to IEEE 830 Clinical PRD Specifications</span>
+      <div style="display: flex; align-items: center; gap: 1rem;">
+        <span>Cream #F3EEE3 &amp; Ink Black #111111 Editorial Minimalism</span>
+        <button type="button" class="cq-btn cq-btn-sm cq-btn-secondary" onclick="app.resetData()" title="Reset storage back to initial installation baseline">Reset to Install Baseline</button>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
