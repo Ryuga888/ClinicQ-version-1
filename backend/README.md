@@ -1,84 +1,99 @@
-# ClinicQ — Backend Architecture & Specification
+# ClinicQ — Backend Architecture & Service
 
-This folder is dedicated to the ClinicQ backend service, designed to conform with the **ClinicQ PRD** and IEEE 830 specifications.
+The ClinicQ backend is a Python Django service implementing all functional and security requirements defined in the ClinicQ specifications.
 
 ---
 
-## Planned Tech Stack (PRD Page 8)
+## Implemented Tech Stack
 
-- **Framework**: Python 3.11+, Django 5
-- **Database**: PostgreSQL
-- **Password Security**: Argon2 (`argon2-cffi`) salted hashes (NFR-4)
-- **Concurrency & Safety**: `transaction.atomic` with `select_for_update` to guarantee zero double-booking under concurrency (FR-3.3, NFR-3)
-- **Configuration**: `python-dotenv` with environment variables (NFR-11)
-- **Testing**: Django `TestCase` and `TransactionTestCase`
+- **Framework**: Python 3.13 / Django 6.1
+- **Database**: MongoDB & SQLite session management
+- **Password Security**: Argon2 (`argon2-cffi`) salted hashes
+- **Concurrency & Atomic Reservation**: Atomic reservation with unique status constraints rejecting double-bookings under concurrent requests
+- **Configuration**: `python-dotenv` with environment variables (`.env`)
+- **Integration**: Direct REST API routes integrated with the single-page frontend
 
 ---
 
 ## App Modular Layout
 
-As specified in the PRD, the Django backend is organized into one dedicated app per module:
+As specified in the architecture, the backend is organized into dedicated apps per functional module:
 
 ```text
 backend/
 ├── manage.py
-├── clinicq/               # Core project settings, routing, WSGI/ASGI
-├── accounts/              # Module M1: Registration, authentication, roles, session timeout
-├── clinic/                # Module M2: Doctor profiles, slot generator engine
-├── booking/               # Modules M3 & M4: Atomic booking, cancellations, schedules
-├── notes/                 # Module M5: Confidential clinical consultation notes
-└── audit/                 # Module M6: Append-only security audit log
+├── config/                # Core settings, URL routing, frontend serving
+├── clinicq/
+│   ├── database/          # Connection, collections, schemas, indexes, validators
+│   └── api_helpers.py     # Auth helpers, Argon2 hashing, audit logging
+├── accounts/              # Accounts: Registration, authentication, roles, session timeout
+├── clinic/                # Clinicians: Doctor profiles, slot generator engine
+├── booking/               # Booking: Atomic booking, cancellations, clinician schedules, admin register
+├── notes/                 # Consultation notes: Confidential clinical consultation notes
+└── audit/                 # Audit logging: Append-only security audit log
 ```
 
 ---
 
-## Core Security & Business Rules (To Enforce)
+## Core Security & Business Rules
 
-1. **Double Booking Prevention (FR-3.3, FR-3.4)**
-   - Database-level unique constraint on `(doctor_id, start_time)` for active slots.
-   - Atomic transactions (`transaction.atomic`) with row locks (`select_for_update`) during slot reservation.
+1. **Double Booking Prevention**
+   - Database-level unique constraint on `(doctor_id, start_at)` for slots.
+   - Atomic `find_one_and_update` on `{"_id": slot_id, "status": "Free"}` guarantees exactly one winner under concurrency.
+   - Collision checks prevent any patient from holding two active appointments at the same date and time.
 
-2. **Access Control & IDOR Defense (FR-1.4, NFR-6, NFR-7)**
-   - Role checks (`Patient`, `Doctor`, `Admin`) verified server-side on every request.
-   - Record lookups by ID must verify ownership; unauthorized attempts return `404 Not Found` (blocking IDOR).
+2. **Access Control & Privacy**
+   - Server-side role checks (`Patient`, `Doctor`, `Admin`) enforced on every endpoint.
+   - Record lookups verify ownership; unauthorized requests return not-found or access denied.
 
-3. **Clinician Note Secrecy (FR-5.2)**
-   - Consultation notes are readable **only** by the treating doctor.
+3. **Clinician Note Secrecy**
+   - Clinical notes (up to 2,000 characters) are readable and editable **exclusively** by the treating doctor.
    - Strictly excluded from Patient and Admin queries and API responses.
 
-4. **Security Hardening (NFR-5, NFR-9, NFR-10, NFR-12)**
-   - All database access via Django ORM with parameterized queries (SQL injection defense).
-   - Session cookies flagged with `HttpOnly` and `SameSite=Lax/Strict`.
-   - Production error pages (`DEBUG=False`) with zero stack traces, paths, or SQL queries exposed.
-   - Account lockout after 5 consecutive failed login attempts within 10 minutes (NFR-12).
+4. **Security Hardening**
+   - Session cookies flagged with `HttpOnly` and `SameSite=Lax`.
+   - Account lockout after 5 consecutive failed login attempts within 10 minutes.
+   - Single generic error message on failed login: *"Invalid email or password."*
 
 ---
 
-## Setup & Development (Quickstart)
+## Setup & Running the Integrated Server
 
 ```bash
-# 1. Create and activate a virtual environment
-python -m venv venv
-# Windows:
-.\venv\Scripts\activate
-# Linux/macOS:
-source venv/bin/activate
+# 1. From the backend directory
+cd backend
 
-# 2. Install dependencies
-pip install django psycopg2-binary argon2-cffi python-dotenv
-
-# 3. Configure environment variables in .env
-# DB_NAME=clinicq
-# DB_USER=postgres
-# DB_PASSWORD=your_password
-# SECRET_KEY=your_django_secret_key
-
-# 4. Run migrations
+# 2. Run migrations
 python manage.py migrate
 
-# 5. Run test suite
-python manage.py test
+# 3. Seed initial master administrator (if not present)
+python manage.py seed_admin
 
-# 6. Start development server
-python manage.py runserver
+# 4. Start the integrated server
+python manage.py runserver 8000
+```
+
+Once running, navigate to **`http://localhost:8000`** in your browser. The Django server serves the frontend application and handles all REST API requests seamlessly.
+
+---
+
+## Automated Backend Integration Tests
+
+To verify all backend API endpoints:
+```bash
+cd backend
+python test_backend.py
+```
+Expected output:
+```text
+Testing Backend Endpoints...
+1. Admin Login Response: 200 OK
+2. Patient Register Response: 201 Created
+3. Admin Create Doctor Response: 201 Created
+4. Generate Slots Response: 200 OK
+5. List Slots Response: 200 OK
+6. Book Slot Response: 201 Created
+7. Audit Logs Response: 200 OK
+
+ALL BACKEND API ENDPOINTS VERIFIED SUCCESSFULLY!
 ```

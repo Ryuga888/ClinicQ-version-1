@@ -1,14 +1,11 @@
 /**
  * ClinicQ Static Data Store
- * Initial clean install state as per PRD (Page 2 & Page 10):
- * "One Admin account is created at install; patients self-register; Admin creates doctor accounts and generates slots."
- * No synthetic AI dummy filler.
+ * Clean initial installation state.
  */
 
 const CLINICQ_STORAGE_KEY = 'clinicq_state_v1';
 
 const INITIAL_INSTALL_DATA = {
-  // PRD Page 2 & 10: One Admin account created at installation
   users: [
     {
       id: 'usr_admin',
@@ -68,7 +65,7 @@ class ClinicStore {
     this.save();
   }
 
-  // --- Append-Only Audit Logging (FR-6.1, FR-6.2) ---
+  // --- Append-Only Audit Logging ---
   logAction(currentUser, action, targetType, targetId, details) {
     const entry = {
       id: 'aud_' + Date.now() + '_' + Math.floor(Math.random() * 1000),

@@ -1,7 +1,5 @@
-
 import os
 import certifi
-
 from pymongo import MongoClient
 from dotenv import load_dotenv
 
@@ -14,18 +12,15 @@ BASE_DIR = os.path.dirname(
 
 load_dotenv(os.path.join(BASE_DIR, ".env"))
 
-MONGODB_URI = os.getenv("MONGODB_URI")
+MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017/")
 DATABASE_NAME = os.getenv("MONGODB_DATABASE", "clinicq")
 
-if not MONGODB_URI:
-    raise ValueError("MONGODB_URI is missing from .env")
+# Create MongoDB client supporting both local instances and Atlas clusters
+client_kwargs = {"serverSelectionTimeoutMS": 5000}
+if "mongodb+srv://" in MONGODB_URI or "ssl=true" in MONGODB_URI.lower():
+    client_kwargs["tlsCAFile"] = certifi.where()
 
-# Create MongoDB client
-client = MongoClient(
-    MONGODB_URI,
-    tlsCAFile=certifi.where(),
-    serverSelectionTimeoutMS=5000
-)
+client = MongoClient(MONGODB_URI, **client_kwargs)
 
 # Select ClinicQ database
 db = client[DATABASE_NAME]
@@ -33,15 +28,11 @@ db = client[DATABASE_NAME]
 
 def connect_mongodb():
     """Verify MongoDB connection."""
-
     try:
         client.admin.command("ping")
-
         print("MongoDB connected successfully!")
         print(f"Database: {DATABASE_NAME}")
-
         return db
-
     except Exception as error:
         print(f"MongoDB connection failed: {error}")
         raise

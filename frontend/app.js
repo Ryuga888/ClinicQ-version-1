@@ -1,7 +1,12 @@
 /**
  * ClinicQ — Application Controller
- * Pure Vanilla JavaScript implementation of IEEE 830 Functional & Non-Functional Requirements.
+ * Outpatient Appointment & Schedule Register
+ * Integrated with Django Backend API & Static Store Fallback
  */
+
+const API_BASE = (typeof window !== 'undefined' && window.location && window.location.origin && window.location.origin.startsWith('http'))
+  ? `${window.location.origin}/api`
+  : 'http://localhost:8000/api';
 
 class ClinicApp {
   constructor() {
@@ -9,13 +14,14 @@ class ClinicApp {
     this.currentUser = null;
     this.currentView = null;
     this.authTab = 'login'; // 'login' or 'register'
+    this.useBackend = false;
 
-    // Security & Inactivity (FR-1.3, NFR-12)
+    // Security & Inactivity tracking
     this.inactivitySeconds = 30 * 60; // 30 minutes
     this.inactivityTimer = null;
     this.failedLoginAttempts = {}; // { email: { count, lastFailedTime } }
 
-    // Patient booking workflow state (NFR-13: 4 steps or fewer)
+    // Patient booking workflow state
     this.bookingState = {
       selectedDoctorId: null,
       selectedDate: this.getTodayDateString(),
@@ -24,6 +30,26 @@ class ClinicApp {
 
     // Initialize
     this.initEventListeners();
+    this.detectBackend();
+  }
+
+  async detectBackend() {
+    try {
+      if (typeof fetch === 'function' && typeof window !== 'undefined' && window.location && window.location.protocol.startsWith('http')) {
+        const res = await fetch(`${API_BASE}/auth/me`, { credentials: 'include' });
+        if (res.ok) {
+          this.useBackend = true;
+          const data = await res.json();
+          if (data && data.user) {
+            this.currentUser = data.user;
+            this.onUserLoggedIn();
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      this.useBackend = false;
+    }
     this.checkSession();
   }
 
@@ -47,7 +73,7 @@ class ClinicApp {
     return timeStr;
   }
 
-  // Escape HTML to prevent XSS (NFR-8)
+  // Escape HTML to prevent cross-site scripting
   escapeHtml(str) {
     if (str === null || str === undefined) return '';
     return String(str)
@@ -71,7 +97,7 @@ class ClinicApp {
     alertEl.style.display = 'none';
   }
 
-  // --- Activity Tracking & 30-min Session Inactivity (FR-1.3) ---
+  // --- Activity Tracking & 30-min Session Inactivity ---
   resetInactivity() {
     this.inactivitySeconds = 30 * 60;
   }
@@ -101,13 +127,15 @@ class ClinicApp {
 
   handleAutoLogout() {
     if (this.currentUser) {
-      this.store.logAction(
-        this.currentUser,
-        'SESSION_EXPIRED',
-        'USER',
-        this.currentUser.id,
-        'Session terminated due to 30 minutes of inactivity (FR-1.3).'
-      );
+      if (!this.useBackend) {
+        this.store.logAction(
+          this.currentUser,
+          'SESSION_EXPIRED',
+          'USER',
+          this.currentUser.id,
+          'Session terminated due to 30 minutes of inactivity.'
+        );
+      }
       this.logout(false);
       this.showAlert('Your session expired due to 30 minutes of inactivity. Please sign in again.', 'info');
     }
@@ -122,7 +150,7 @@ class ClinicApp {
     });
   }
 
-  // --- Authentication Flow (FR-1.1, FR-1.2, FR-1.3, NFR-12) ---
+  // --- Authentication Flow ---
   checkSession() {
     const savedUser = sessionStorage.getItem('clinicq_current_user');
     if (savedUser) {
@@ -163,19 +191,44 @@ class ClinicApp {
     }
   }
 
-  handleLogin(e) {
-    e.preventDefault();
+  async handleLogin(e) {
+    if (e && e.preventDefault) e.preventDefault();
     const email = document.getElementById('login-email').value.trim().toLowerCase();
     const password = document.getElementById('login-password').value;
     const authErrorEl = document.getElementById('auth-error');
     const authErrorMsg = document.getElementById('auth-error-msg');
 
-    // NFR-12: After 5 failed logins in 10 minutes, block account for 10 minutes
+    if (this.useBackend) {
+      try {
+        const res = await fetch(`${API_BASE}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          authErrorMsg.textContent = data.error || 'Invalid email or password.';
+          authErrorEl.style.display = 'block';
+          return;
+        }
+
+        authErrorEl.style.display = 'none';
+        this.currentUser = data.user;
+        sessionStorage.setItem('clinicq_current_user', JSON.stringify(this.currentUser));
+        this.onUserLoggedIn();
+        return;
+      } catch (err) {
+        console.warn('Backend login failed, attempting local fallback', err);
+      }
+    }
+
+    // Fallback: Local validation
     const now = Date.now();
     const failedInfo = this.failedLoginAttempts[email];
     if (failedInfo && failedInfo.count >= 5 && (now - failedInfo.lastFailedTime) < 10 * 60 * 1000) {
       const waitMins = Math.ceil((10 * 60 * 1000 - (now - failedInfo.lastFailedTime)) / 60000);
-      authErrorMsg.textContent = `Account locked due to 5 consecutive failed attempts (NFR-12). Please wait ${waitMins} minute(s).`;
+      authErrorMsg.textContent = `Account locked due to 5 consecutive failed attempts. Please wait ${waitMins} minute(s).`;
       authErrorEl.style.display = 'block';
       return;
     }
@@ -183,7 +236,6 @@ class ClinicApp {
     const user = this.store.data.users.find(u => u.email.toLowerCase() === email && u.password === password);
 
     if (!user) {
-      // Record failed attempt
       if (!this.failedLoginAttempts[email]) {
         this.failedLoginAttempts[email] = { count: 1, lastFailedTime: now };
       } else {
@@ -191,21 +243,12 @@ class ClinicApp {
         this.failedLoginAttempts[email].lastFailedTime = now;
       }
 
-      this.store.logAction(
-        null,
-        'LOGIN_FAILED',
-        'USER',
-        email,
-        'Failed authentication attempt.'
-      );
-
-      // FR-1.2: One generic error message
+      this.store.logAction(null, 'LOGIN_FAILED', 'USER', email, 'Failed authentication attempt.');
       authErrorMsg.textContent = 'Invalid email or password.';
       authErrorEl.style.display = 'block';
       return;
     }
 
-    // Login successful: reset failed counter
     delete this.failedLoginAttempts[email];
     authErrorEl.style.display = 'none';
 
@@ -218,19 +261,12 @@ class ClinicApp {
     };
 
     sessionStorage.setItem('clinicq_current_user', JSON.stringify(this.currentUser));
-    this.store.logAction(
-      this.currentUser,
-      'LOGIN_SUCCESS',
-      'USER',
-      user.id,
-      `User signed in with role: ${user.role}`
-    );
-
+    this.store.logAction(this.currentUser, 'LOGIN_SUCCESS', 'USER', user.id, `User signed in with role: ${user.role}`);
     this.onUserLoggedIn();
   }
 
-  handleRegister(e) {
-    e.preventDefault();
+  async handleRegister(e) {
+    if (e && e.preventDefault) e.preventDefault();
     const name = document.getElementById('reg-name').value.trim();
     const email = document.getElementById('reg-email').value.trim().toLowerCase();
     const phone = document.getElementById('reg-phone').value.trim();
@@ -239,7 +275,33 @@ class ClinicApp {
     const authErrorEl = document.getElementById('auth-error');
     const authErrorMsg = document.getElementById('auth-error-msg');
 
-    // FR-1.1: Email is unique
+    if (this.useBackend) {
+      try {
+        const res = await fetch(`${API_BASE}/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ name, email, phone, password })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          authErrorMsg.textContent = data.error || 'Registration failed.';
+          authErrorEl.style.display = 'block';
+          return;
+        }
+
+        authErrorEl.style.display = 'none';
+        this.currentUser = data.user;
+        sessionStorage.setItem('clinicq_current_user', JSON.stringify(this.currentUser));
+        this.showAlert(`Welcome, ${this.currentUser.name}. Your patient registration is complete.`, 'success');
+        this.onUserLoggedIn();
+        return;
+      } catch (err) {
+        console.warn('Backend register failed, attempting local fallback', err);
+      }
+    }
+
+    // Fallback: Local registration
     const existing = this.store.data.users.find(u => u.email.toLowerCase() === email);
     if (existing) {
       authErrorMsg.textContent = 'An account with this email address already exists. Please sign in or use a different email.';
@@ -259,13 +321,7 @@ class ClinicApp {
     this.store.data.users.push(newUser);
     this.store.save();
 
-    this.store.logAction(
-      newUser,
-      'USER_REGISTRATION',
-      'USER',
-      newUser.id,
-      `Patient self-registered with email ${email}`
-    );
+    this.store.logAction(newUser, 'USER_REGISTRATION', 'USER', newUser.id, `Patient self-registered with email ${email}`);
 
     this.currentUser = {
       id: newUser.id,
@@ -280,16 +336,18 @@ class ClinicApp {
     this.onUserLoggedIn();
   }
 
-  logout(shouldLog = true) {
-    if (shouldLog && this.currentUser) {
-      this.store.logAction(
-        this.currentUser,
-        'LOGOUT',
-        'USER',
-        this.currentUser.id,
-        'User explicitly logged out.'
-      );
+  async logout(shouldLog = true) {
+    if (this.useBackend) {
+      try {
+        await fetch(`${API_BASE}/auth/logout`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+      } catch (e) {}
+    } else if (shouldLog && this.currentUser) {
+      this.store.logAction(this.currentUser, 'LOGOUT', 'USER', this.currentUser.id, 'User explicitly logged out.');
     }
+
     this.currentUser = null;
     sessionStorage.removeItem('clinicq_current_user');
     clearInterval(this.inactivityTimer);
@@ -322,7 +380,7 @@ class ClinicApp {
       <button type="button" class="cq-btn cq-btn-sm cq-btn-secondary" onclick="app.logout()">Log Out</button>
     `;
 
-    // Render Navigation Tabs based strictly on Role (FR-1.4, NFR-6)
+    // Render Navigation Tabs based on Role
     this.renderNavigation();
 
     // Route to initial default view per role
@@ -335,7 +393,7 @@ class ClinicApp {
     }
   }
 
-  // --- Role-Based Navigation & Access Control (FR-1.4, NFR-6) ---
+  // --- Role-Based Navigation & Access Control ---
   renderNavigation() {
     const navBar = document.getElementById('main-nav');
     const tabsList = document.getElementById('nav-tabs-list');
@@ -373,7 +431,6 @@ class ClinicApp {
       return;
     }
 
-    // Strict role check on every screen transition (FR-1.4, NFR-6)
     const role = this.currentUser.role;
     const patientViews = ['find-doctor', 'patient-appointments'];
     const doctorViews = ['doctor-schedule'];
@@ -395,12 +452,10 @@ class ClinicApp {
     this.hideAllViews();
     this.currentView = viewName;
 
-    // Update active tab styles
     document.querySelectorAll('.cq-nav-tab').forEach(t => t.classList.remove('active'));
     const activeTab = document.getElementById(`nav-${viewName}`);
     if (activeTab) activeTab.classList.add('active');
 
-    // Route view rendering
     if (viewName === 'find-doctor') {
       document.getElementById('view-find-doctor').style.display = 'block';
       this.setupBookingView();
@@ -422,10 +477,7 @@ class ClinicApp {
     }
   }
 
-  // ========================================================================
-  // SCREEN 2: UI-2 Find a Doctor & Book Slot (Patient)
-  // (FR-3.1, FR-3.2, FR-3.3, FR-3.4, FR-3.6, FR-3.8, NFR-13)
-  // ========================================================================
+  // --- Patient Booking Flow ---
   setupBookingView() {
     const dateInput = document.getElementById('patient-booking-date');
     if (!dateInput.value) {
@@ -457,12 +509,24 @@ class ClinicApp {
     document.getElementById('booking-confirmed-panel').style.display = 'none';
   }
 
-  renderDoctorSelector() {
+  async renderDoctorSelector() {
     const listEl = document.getElementById('patient-doctor-list');
     const noticeEl = document.getElementById('no-doctors-notice');
     listEl.innerHTML = '';
 
-    const doctors = this.store.data.doctors;
+    let doctors = [];
+    if (this.useBackend) {
+      try {
+        const res = await fetch(`${API_BASE}/clinic/doctors`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          doctors = data.doctors || [];
+        }
+      } catch (e) {}
+    } else {
+      doctors = this.store.data.doctors || [];
+    }
+
     if (!doctors || doctors.length === 0) {
       noticeEl.style.display = 'block';
       document.getElementById('patient-slots-container').style.display = 'none';
@@ -475,7 +539,7 @@ class ClinicApp {
       const isSelected = this.bookingState.selectedDoctorId === doc.id;
       const card = document.createElement('div');
       card.className = `cq-doc-item ${isSelected ? 'selected' : ''}`;
-      card.onclick = () => this.selectDoctorForBooking(doc.id);
+      card.onclick = () => this.selectDoctorForBooking(doc);
       card.innerHTML = `
         <div class="cq-doc-name">${this.escapeHtml(doc.name)}</div>
         <div class="cq-doc-spec">${this.escapeHtml(doc.specialization)}</div>
@@ -488,8 +552,13 @@ class ClinicApp {
     }
   }
 
-  selectDoctorForBooking(doctorId) {
-    this.bookingState.selectedDoctorId = doctorId;
+  selectDoctorForBooking(doctorOrId) {
+    if (typeof doctorOrId === 'object') {
+      this.bookingState.selectedDoctorId = doctorOrId.id;
+      this.bookingState.selectedDoctor = doctorOrId;
+    } else {
+      this.bookingState.selectedDoctorId = doctorOrId;
+    }
     this.bookingState.selectedSlot = null;
     this.renderDoctorSelector();
     this.renderAvailableSlots();
@@ -504,8 +573,7 @@ class ClinicApp {
     }
   }
 
-  // FR-3.1: Free slots display
-  renderAvailableSlots() {
+  async renderAvailableSlots() {
     const container = document.getElementById('patient-slots-container');
     const grid = document.getElementById('slots-grid-list');
     const countLabel = document.getElementById('slots-count-label');
@@ -517,10 +585,20 @@ class ClinicApp {
     const doctorId = this.bookingState.selectedDoctorId;
     const date = this.bookingState.selectedDate;
 
-    // Filter free slots for selected doctor and date
-    const allSlots = this.store.data.slots.filter(s => s.doctorId === doctorId && s.date === date);
-    const freeSlots = allSlots.filter(s => s.status === 'Free' && !this.isPastTime(s.date, s.startTime));
+    let allSlots = [];
+    if (this.useBackend) {
+      try {
+        const res = await fetch(`${API_BASE}/clinic/slots?doctor_id=${doctorId}&date=${date}`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          allSlots = data.slots || [];
+        }
+      } catch (e) {}
+    } else {
+      allSlots = this.store.data.slots.filter(s => s.doctorId === doctorId && s.date === date);
+    }
 
+    const freeSlots = allSlots.filter(s => s.status === 'Free' && !s.isPast && !this.isPastTime(s.date, s.startTime));
     countLabel.textContent = `${freeSlots.length} available out of ${allSlots.length} slots`;
 
     if (freeSlots.length === 0) {
@@ -529,12 +607,10 @@ class ClinicApp {
     }
 
     noSlotsNotice.style.display = 'none';
-
-    // Sort slots chronologically
     allSlots.sort((a, b) => a.startTime.localeCompare(b.startTime));
 
     allSlots.forEach(slot => {
-      const isPast = this.isPastTime(slot.date, slot.startTime);
+      const isPast = slot.isPast || this.isPastTime(slot.date, slot.startTime);
       const isBooked = slot.status === 'Booked' || isPast;
       const isSelected = this.bookingState.selectedSlot && this.bookingState.selectedSlot.id === slot.id;
 
@@ -564,14 +640,13 @@ class ClinicApp {
   selectSlotForBooking(slot) {
     this.bookingState.selectedSlot = slot;
     this.setStepIndicator(2);
-    this.renderAvailableSlots(); // refresh selection highlight
+    this.renderAvailableSlots();
 
-    // Proceed to Step 3: Review panel
     this.setStepIndicator(3);
-    const doc = this.store.data.doctors.find(d => d.id === this.bookingState.selectedDoctorId);
+    const doc = this.bookingState.selectedDoctor || (this.store && this.store.data.doctors ? this.store.data.doctors.find(d => d.id === this.bookingState.selectedDoctorId) : null);
 
-    document.getElementById('review-doc-name').textContent = doc.name;
-    document.getElementById('review-doc-spec').textContent = doc.specialization;
+    document.getElementById('review-doc-name').textContent = doc ? doc.name : 'Physician';
+    document.getElementById('review-doc-spec').textContent = doc ? doc.specialization : '';
     document.getElementById('review-datetime').textContent = `${slot.date} at ${slot.startTime} – ${slot.endTime}`;
     document.getElementById('review-duration').textContent = `Fixed-length consultation window`;
     document.getElementById('review-patient-name').textContent = this.currentUser.name;
@@ -588,31 +663,59 @@ class ClinicApp {
     this.renderAvailableSlots();
   }
 
-  // FR-3.2, FR-3.3, FR-3.4, FR-3.6, FR-3.8: All-or-nothing booking transaction
-  confirmBooking() {
+  async confirmBooking() {
     const slot = this.bookingState.selectedSlot;
     if (!slot) {
       this.showAlert('No slot selected.', 'danger');
       return;
     }
 
-    // FR-3.6: Booking a slot whose start time has passed is refused
+    if (this.useBackend) {
+      try {
+        const res = await fetch(`${API_BASE}/booking/book`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ slot_id: slot.id })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          this.showAlert(data.error || 'Failed to book slot.', 'danger');
+          if (res.status === 409) this.cancelBookingReview();
+          return;
+        }
+
+        const appt = data.appointment;
+        this.setStepIndicator(4);
+        document.getElementById('booking-selection-panel').style.display = 'none';
+        document.getElementById('booking-review-panel').style.display = 'none';
+        const confirmedPanel = document.getElementById('booking-confirmed-panel');
+        confirmedPanel.style.display = 'block';
+
+        document.getElementById('confirmed-ref-id').textContent = appt.id;
+        document.getElementById('confirmed-doc-name').textContent = appt.doctorName;
+        document.getElementById('confirmed-datetime').textContent = `${appt.date} &bull; ${appt.startTime} – ${appt.endTime}`;
+        confirmedPanel.scrollIntoView({ behavior: 'smooth' });
+        return;
+      } catch (err) {
+        console.warn('Backend booking error, trying fallback', err);
+      }
+    }
+
+    // Fallback: Local booking
     if (this.isPastTime(slot.date, slot.startTime)) {
       this.showAlert('Refused: This appointment slot has already passed.', 'danger');
       this.cancelBookingReview();
       return;
     }
 
-    // Re-verify slot existence and status in store (FR-3.3 atomic check)
     const storeSlot = this.store.data.slots.find(s => s.id === slot.id);
     if (!storeSlot || storeSlot.status !== 'Free') {
-      // FR-3.3: "This slot was just taken"
       this.showAlert('This slot was just taken. Please select another free slot.', 'danger');
       this.cancelBookingReview();
       return;
     }
 
-    // FR-3.8: One patient cannot hold two active appointments at the same date and time
     const patientCollision = this.store.data.appointments.find(a =>
       a.patientId === this.currentUser.id &&
       a.status === 'Booked' &&
@@ -621,11 +724,10 @@ class ClinicApp {
     );
 
     if (patientCollision) {
-      this.showAlert('Refused: You already hold an active appointment at this date and time (FR-3.8).', 'danger');
+      this.showAlert('Refused: You already hold an active appointment at this date and time.', 'danger');
       return;
     }
 
-    // Execute atomic booking transaction (FR-3.4)
     storeSlot.status = 'Booked';
 
     const newAppointment = {
@@ -642,7 +744,6 @@ class ClinicApp {
 
     this.store.data.appointments.push(newAppointment);
 
-    // Append-only audit record (FR-6.1)
     const doc = this.store.data.doctors.find(d => d.id === storeSlot.doctorId);
     this.store.logAction(
       this.currentUser,
@@ -654,7 +755,6 @@ class ClinicApp {
 
     this.store.save();
 
-    // Step 4: Confirmed (NFR-13: takes 4 steps or fewer after login)
     this.setStepIndicator(4);
     document.getElementById('booking-selection-panel').style.display = 'none';
     document.getElementById('booking-review-panel').style.display = 'none';
@@ -668,17 +768,25 @@ class ClinicApp {
     confirmedPanel.scrollIntoView({ behavior: 'smooth' });
   }
 
-  // ========================================================================
-  // SCREEN 3: UI-3 My Appointments (Patient)
-  // (FR-3.5, FR-3.6, FR-3.7, NFR-7)
-  // ========================================================================
-  renderPatientAppointments() {
+  // --- Patient Appointments View ---
+  async renderPatientAppointments() {
     const tbody = document.getElementById('patient-appointments-table-body');
     const emptyNotice = document.getElementById('no-patient-appointments');
     tbody.innerHTML = '';
 
-    // NFR-7 & FR-3.7: Patient sees ONLY their own appointments
-    const myAppointments = this.store.data.appointments.filter(a => a.patientId === this.currentUser.id);
+    let myAppointments = [];
+    if (this.useBackend) {
+      try {
+        const res = await fetch(`${API_BASE}/booking/patient`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          myAppointments = data.appointments || [];
+        }
+      } catch (e) {}
+    } else {
+      myAppointments = this.store.data.appointments.filter(a => a.patientId === this.currentUser.id);
+      myAppointments.sort((a, b) => (`${b.date} ${b.startTime}`).localeCompare(`${a.date} ${a.startTime}`));
+    }
 
     if (myAppointments.length === 0) {
       emptyNotice.style.display = 'block';
@@ -687,13 +795,12 @@ class ClinicApp {
 
     emptyNotice.style.display = 'none';
 
-    // Sort newest / upcoming first
-    myAppointments.sort((a, b) => (`${b.date} ${b.startTime}`).localeCompare(`${a.date} ${a.startTime}`));
-
     myAppointments.forEach(appt => {
-      const doc = this.store.data.doctors.find(d => d.id === appt.doctorId);
-      const isPast = this.isPastTime(appt.date, appt.startTime);
-      const canCancel = appt.status === 'Booked' && !isPast; // FR-3.6: past cannot be cancelled
+      const doc = this.useBackend ? null : this.store.data.doctors.find(d => d.id === appt.doctorId);
+      const docName = appt.doctorName || (doc ? doc.name : 'Unknown');
+      const docSpec = appt.specialization || (doc ? doc.specialization : '');
+      const isPast = appt.isPast !== undefined ? appt.isPast : this.isPastTime(appt.date, appt.startTime);
+      const canCancel = appt.status === 'Booked' && !isPast;
 
       const tr = document.createElement('tr');
 
@@ -708,8 +815,8 @@ class ClinicApp {
 
       tr.innerHTML = `
         <td class="cq-code">${appt.id}</td>
-        <td style="font-weight: 500;">${this.escapeHtml(doc ? doc.name : 'Unknown')}</td>
-        <td style="font-size: 0.85rem; color: var(--color-ink-muted);">${this.escapeHtml(doc ? doc.specialization : '')}</td>
+        <td style="font-weight: 500;">${this.escapeHtml(docName)}</td>
+        <td style="font-size: 0.85rem; color: var(--color-ink-muted);">${this.escapeHtml(docSpec)}</td>
         <td class="cq-tabular">${appt.date}</td>
         <td class="cq-tabular">${appt.startTime} &ndash; ${appt.endTime}</td>
         <td>${statusBadge}</td>
@@ -726,25 +833,40 @@ class ClinicApp {
     });
   }
 
-  // FR-3.5: Patient cancels own upcoming appointment & frees slot
-  patientCancelAppointment(appointmentId) {
-    const appt = this.store.data.appointments.find(a => a.id === appointmentId);
-    if (!appt || appt.patientId !== this.currentUser.id) {
-      this.showAlert('Record not found or access denied (NFR-7 IDOR block).', 'danger');
-      return;
-    }
-
-    // FR-3.6: Start time has passed refusal
-    if (this.isPastTime(appt.date, appt.startTime)) {
-      this.showAlert('Refused: Past appointments cannot be cancelled (FR-3.6).', 'danger');
-      return;
-    }
-
+  async patientCancelAppointment(appointmentId) {
     if (!confirm('Are you sure you want to cancel this scheduled appointment? The slot will become available to others.')) {
       return;
     }
 
-    // Free the slot
+    if (this.useBackend) {
+      try {
+        const res = await fetch(`${API_BASE}/booking/${appointmentId}/cancel`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          this.showAlert(data.error || 'Failed to cancel appointment.', 'danger');
+          return;
+        }
+        this.showAlert('Appointment successfully cancelled. The slot has been released.', 'success');
+        this.renderPatientAppointments();
+        return;
+      } catch (err) {}
+    }
+
+    // Fallback: Local cancel
+    const appt = this.store.data.appointments.find(a => a.id === appointmentId);
+    if (!appt || appt.patientId !== this.currentUser.id) {
+      this.showAlert('Record not found or access denied.', 'danger');
+      return;
+    }
+
+    if (this.isPastTime(appt.date, appt.startTime)) {
+      this.showAlert('Past appointments cannot be cancelled.', 'danger');
+      return;
+    }
+
     appt.status = 'Cancelled';
     const slot = this.store.data.slots.find(s => s.id === appt.slotId);
     if (slot) {
@@ -764,48 +886,49 @@ class ClinicApp {
     this.renderPatientAppointments();
   }
 
-  // ========================================================================
-  // SCREEN 4: UI-4 My Schedule (Doctor)
-  // (FR-4.1, FR-4.2, FR-4.3, FR-5.1, FR-5.2)
-  // ========================================================================
+  // --- Doctor Schedule View ---
   setupDoctorScheduleView() {
-    // Locate doctor profile corresponding to logged-in user
-    const doctorProfile = this.store.data.doctors.find(d => d.userId === this.currentUser.id);
     const heading = document.getElementById('doctor-schedule-heading');
     const dateInput = document.getElementById('doc-filter-date');
 
     if (!dateInput.value) {
-      dateInput.value = this.getTodayDateString(); // FR-4.1: today by default
+      dateInput.value = this.getTodayDateString();
     }
 
-    if (!doctorProfile) {
-      heading.textContent = `Physician Schedule (${this.currentUser.name})`;
-      this.showAlert('No clinician profile linked to this user account yet. Admin must configure doctor profile.', 'warning');
-      return;
-    }
-
-    heading.textContent = `Schedule: ${doctorProfile.name} — ${doctorProfile.specialization}`;
+    heading.textContent = `Schedule: ${this.currentUser.name}`;
     this.renderDoctorSchedule();
   }
 
-  renderDoctorSchedule() {
-    const doctorProfile = this.store.data.doctors.find(d => d.userId === this.currentUser.id);
+  async renderDoctorSchedule() {
     const tbody = document.getElementById('doctor-schedule-table-body');
     const emptyNotice = document.getElementById('no-doctor-appointments');
+    const selectedDate = document.getElementById('doc-filter-date').value;
     tbody.innerHTML = '';
 
-    if (!doctorProfile) {
-      emptyNotice.style.display = 'block';
-      return;
+    let appointments = [];
+    if (this.useBackend) {
+      try {
+        const res = await fetch(`${API_BASE}/booking/doctor?date=${selectedDate}`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          appointments = data.appointments || [];
+          if (data.doctor) {
+            document.getElementById('doctor-schedule-heading').textContent = `Schedule: ${data.doctor.name} — ${data.doctor.specialization}`;
+          }
+        }
+      } catch (e) {}
+    } else {
+      const doctorProfile = this.store.data.doctors.find(d => d.userId === this.currentUser.id);
+      if (!doctorProfile) {
+        emptyNotice.style.display = 'block';
+        return;
+      }
+      appointments = this.store.data.appointments.filter(a =>
+        a.doctorId === doctorProfile.id &&
+        a.date === selectedDate
+      );
+      appointments.sort((a, b) => a.startTime.localeCompare(b.startTime));
     }
-
-    const selectedDate = document.getElementById('doc-filter-date').value;
-
-    // FR-4.1: Doctor sees ONLY their own appointments, filtered by date
-    const appointments = this.store.data.appointments.filter(a =>
-      a.doctorId === doctorProfile.id &&
-      a.date === selectedDate
-    );
 
     if (appointments.length === 0) {
       emptyNotice.style.display = 'block';
@@ -813,12 +936,11 @@ class ClinicApp {
     }
 
     emptyNotice.style.display = 'none';
-    appointments.sort((a, b) => a.startTime.localeCompare(b.startTime));
 
     appointments.forEach(appt => {
-      // FR-4.2: Doctor sees patient name and phone for their own appointments only
-      const patient = this.store.data.users.find(u => u.id === appt.patientId);
-      const note = this.store.data.notes.find(n => n.appointmentId === appt.id && n.doctorId === doctorProfile.id);
+      const patient = this.useBackend ? null : this.store.data.users.find(u => u.id === appt.patientId);
+      const patientName = appt.patientName || (patient ? patient.name : 'Unknown');
+      const patientPhone = appt.patientPhone || (patient ? patient.phone : 'Unknown');
 
       const tr = document.createElement('tr');
 
@@ -833,12 +955,12 @@ class ClinicApp {
 
       tr.innerHTML = `
         <td class="cq-tabular" style="font-weight: 600;">${appt.startTime} &ndash; ${appt.endTime}</td>
-        <td style="font-weight: 500;">${this.escapeHtml(patient ? patient.name : 'Unknown')}</td>
-        <td class="cq-tabular">${this.escapeHtml(patient ? patient.phone : 'Unknown')}</td>
+        <td style="font-weight: 500;">${this.escapeHtml(patientName)}</td>
+        <td class="cq-tabular">${this.escapeHtml(patientPhone)}</td>
         <td>${statusBadge}</td>
         <td>
           <button type="button" class="cq-btn cq-btn-sm cq-btn-secondary" onclick="app.openNotesModal('${appt.id}')">
-            ${note ? '&check; View/Edit Note' : '+ Add Note'}
+            ${appt.hasNote ? '&check; View/Edit Note' : '+ Add Note'}
           </button>
         </td>
         <td style="text-align: right;">
@@ -854,8 +976,25 @@ class ClinicApp {
     });
   }
 
-  // FR-4.3: Doctor marks their own appointment Completed
-  markAppointmentCompleted(appointmentId) {
+  async markAppointmentCompleted(appointmentId) {
+    if (this.useBackend) {
+      try {
+        const res = await fetch(`${API_BASE}/booking/${appointmentId}/complete`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          this.showAlert(data.error || 'Failed to update appointment.', 'danger');
+          return;
+        }
+        this.showAlert('Appointment marked as Completed.', 'success');
+        this.renderDoctorSchedule();
+        return;
+      } catch (err) {}
+    }
+
+    // Fallback: Local
     const doctorProfile = this.store.data.doctors.find(d => d.userId === this.currentUser.id);
     const appt = this.store.data.appointments.find(a => a.id === appointmentId);
 
@@ -878,24 +1017,39 @@ class ClinicApp {
     this.renderDoctorSchedule();
   }
 
-  // FR-5.1, FR-5.2: Confidential Consultation Notes (strictly treating doctor only)
-  openNotesModal(appointmentId) {
+  async openNotesModal(appointmentId) {
+    document.getElementById('note-appointment-id').value = appointmentId;
+    const textarea = document.getElementById('note-text-content');
+    textarea.value = '';
+
+    if (this.useBackend) {
+      try {
+        const res = await fetch(`${API_BASE}/notes/${appointmentId}`, { credentials: 'include' });
+        const data = await res.json();
+        if (!res.ok) {
+          this.showAlert(data.error || 'Access denied.', 'danger');
+          return;
+        }
+        textarea.value = data.note ? data.note.text : '';
+        this.updateNoteCharCount();
+        document.getElementById('modal-notes').classList.add('open');
+        return;
+      } catch (err) {}
+    }
+
+    // Fallback: Local
     const doctorProfile = this.store.data.doctors.find(d => d.userId === this.currentUser.id);
     const appt = this.store.data.appointments.find(a => a.id === appointmentId);
 
-    // FR-5.2: Only treating doctor can read or write notes
     if (!doctorProfile || !appt || appt.doctorId !== doctorProfile.id) {
-      this.showAlert('Access Denied: Consultation notes are confidential and restricted to the treating doctor (FR-5.2).', 'danger');
+      this.showAlert('Access Denied: Consultation notes are confidential and restricted to the treating doctor.', 'danger');
       return;
     }
 
-    document.getElementById('note-appointment-id').value = appointmentId;
     const existingNote = this.store.data.notes.find(n => n.appointmentId === appointmentId && n.doctorId === doctorProfile.id);
-    const textarea = document.getElementById('note-text-content');
     textarea.value = existingNote ? existingNote.text : '';
     this.updateNoteCharCount();
 
-    // Log note view in audit log (FR-6.1)
     this.store.logAction(
       this.currentUser,
       'NOTE_VIEWED',
@@ -917,18 +1071,39 @@ class ClinicApp {
     document.getElementById('modal-notes').classList.remove('open');
   }
 
-  handleSaveNote(e) {
-    e.preventDefault();
-    const doctorProfile = this.store.data.doctors.find(d => d.userId === this.currentUser.id);
+  async handleSaveNote(e) {
+    if (e && e.preventDefault) e.preventDefault();
     const appointmentId = document.getElementById('note-appointment-id').value;
     const text = document.getElementById('note-text-content').value.trim();
 
-    if (!doctorProfile) return;
-
     if (text.length > 2000) {
-      this.showAlert('Note exceeds 2,000 character maximum limit (FR-5.1).', 'danger');
+      this.showAlert('Note exceeds 2,000 character maximum limit.', 'danger');
       return;
     }
+
+    if (this.useBackend) {
+      try {
+        const res = await fetch(`${API_BASE}/notes/${appointmentId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ text })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          this.showAlert(data.error || 'Failed to save note.', 'danger');
+          return;
+        }
+        this.closeNotesModal();
+        this.showAlert('Confidential consultation note saved.', 'success');
+        this.renderDoctorSchedule();
+        return;
+      } catch (err) {}
+    }
+
+    // Fallback: Local
+    const doctorProfile = this.store.data.doctors.find(d => d.userId === this.currentUser.id);
+    if (!doctorProfile) return;
 
     let note = this.store.data.notes.find(n => n.appointmentId === appointmentId && n.doctorId === doctorProfile.id);
     if (note) {
@@ -959,26 +1134,34 @@ class ClinicApp {
     this.renderDoctorSchedule();
   }
 
-  // ========================================================================
-  // SCREEN 5: UI-5 Doctors and Slot Generator (Admin)
-  // (FR-1.5, FR-2.1, FR-2.2, FR-2.3, FR-2.4)
-  // ========================================================================
+  // --- Admin Views: Doctors and Slot Generator ---
   setupAdminDoctorsView() {
     this.renderAdminDoctorsTable();
     this.populateDoctorSelectOptions();
     this.renderAdminSlotsTable();
 
-    // Default dates for slot generator
     document.getElementById('gen-start-date').value = this.getTodayDateString(0);
     document.getElementById('gen-end-date').value = this.getTodayDateString(1);
   }
 
-  renderAdminDoctorsTable() {
+  async renderAdminDoctorsTable() {
     const tbody = document.getElementById('admin-doctors-table-body');
     const emptyNotice = document.getElementById('no-admin-doctors');
     tbody.innerHTML = '';
 
-    const doctors = this.store.data.doctors;
+    let doctors = [];
+    if (this.useBackend) {
+      try {
+        const res = await fetch(`${API_BASE}/clinic/doctors`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          doctors = data.doctors || [];
+        }
+      } catch (e) {}
+    } else {
+      doctors = this.store.data.doctors || [];
+    }
+
     if (doctors.length === 0) {
       emptyNotice.style.display = 'block';
       return;
@@ -987,29 +1170,45 @@ class ClinicApp {
     emptyNotice.style.display = 'none';
 
     doctors.forEach(doc => {
-      const user = this.store.data.users.find(u => u.id === doc.userId);
+      const user = this.useBackend ? null : this.store.data.users.find(u => u.id === doc.userId);
+      const email = doc.email || (user ? user.email : 'N/A');
+      const phone = doc.phone || (user ? user.phone : 'N/A');
+
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td style="font-weight: 600;">${this.escapeHtml(doc.name)}</td>
         <td>${this.escapeHtml(doc.specialization)}</td>
-        <td class="cq-code">${this.escapeHtml(user ? user.email : 'N/A')}</td>
-        <td class="cq-tabular">${this.escapeHtml(user ? user.phone : 'N/A')}</td>
+        <td class="cq-code">${this.escapeHtml(email)}</td>
+        <td class="cq-tabular">${this.escapeHtml(phone)}</td>
         <td style="text-align: right;">
-          <button type="button" class="cq-btn cq-btn-sm cq-btn-secondary" onclick="app.openEditDoctorModal('${doc.id}')">Edit Profile</button>
+          <button type="button" class="cq-btn cq-btn-sm cq-btn-secondary" onclick="app.openEditDoctorModal('${doc.id}', '${this.escapeHtml(doc.name)}', '${this.escapeHtml(doc.specialization)}')">Edit Profile</button>
         </td>
       `;
       tbody.appendChild(tr);
     });
   }
 
-  populateDoctorSelectOptions() {
+  async populateDoctorSelectOptions() {
     const genSelect = document.getElementById('gen-doctor-select');
     const filterSelect = document.getElementById('admin-slot-filter-doc');
 
     genSelect.innerHTML = '';
     filterSelect.innerHTML = '<option value="ALL">All Physicians</option>';
 
-    this.store.data.doctors.forEach(doc => {
+    let doctors = [];
+    if (this.useBackend) {
+      try {
+        const res = await fetch(`${API_BASE}/clinic/doctors`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          doctors = data.doctors || [];
+        }
+      } catch (e) {}
+    } else {
+      doctors = this.store.data.doctors || [];
+    }
+
+    doctors.forEach(doc => {
       const opt1 = document.createElement('option');
       opt1.value = doc.id;
       opt1.textContent = `${doc.name} (${doc.specialization})`;
@@ -1030,15 +1229,35 @@ class ClinicApp {
     document.getElementById('modal-new-doctor').classList.remove('open');
   }
 
-  // FR-1.5 & FR-2.1: Admin creates doctor account and profile
-  handleCreateDoctor(e) {
-    e.preventDefault();
+  async handleCreateDoctor(e) {
+    if (e && e.preventDefault) e.preventDefault();
     const name = document.getElementById('newdoc-name').value.trim();
     const spec = document.getElementById('newdoc-spec').value.trim();
     const email = document.getElementById('newdoc-email').value.trim().toLowerCase();
     const phone = document.getElementById('newdoc-phone').value.trim();
     const password = document.getElementById('newdoc-password').value;
 
+    if (this.useBackend) {
+      try {
+        const res = await fetch(`${API_BASE}/clinic/doctors/create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ name, specialization: spec, email, phone, password })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          this.showAlert(data.error || 'Failed to create doctor.', 'danger');
+          return;
+        }
+        this.closeNewDoctorModal();
+        this.showAlert(`Doctor account created for ${name}.`, 'success');
+        this.setupAdminDoctorsView();
+        return;
+      } catch (err) {}
+    }
+
+    // Fallback: Local
     if (this.store.data.users.some(u => u.email.toLowerCase() === email)) {
       this.showAlert('An account with this email address already exists.', 'danger');
       return;
@@ -1079,13 +1298,18 @@ class ClinicApp {
     this.setupAdminDoctorsView();
   }
 
-  openEditDoctorModal(doctorId) {
-    const doc = this.store.data.doctors.find(d => d.id === doctorId);
-    if (!doc) return;
-
-    document.getElementById('editdoc-id').value = doc.id;
-    document.getElementById('editdoc-name').value = doc.name;
-    document.getElementById('editdoc-spec').value = doc.specialization;
+  openEditDoctorModal(doctorId, name, spec) {
+    document.getElementById('editdoc-id').value = doctorId;
+    if (name) {
+      document.getElementById('editdoc-name').value = name;
+      document.getElementById('editdoc-spec').value = spec || '';
+    } else {
+      const doc = this.store && this.store.data.doctors ? this.store.data.doctors.find(d => d.id === doctorId) : null;
+      if (doc) {
+        document.getElementById('editdoc-name').value = doc.name;
+        document.getElementById('editdoc-spec').value = doc.specialization;
+      }
+    }
     document.getElementById('modal-edit-doctor').classList.add('open');
   }
 
@@ -1093,13 +1317,33 @@ class ClinicApp {
     document.getElementById('modal-edit-doctor').classList.remove('open');
   }
 
-  // FR-2.1: Admin edits doctor profile
-  handleUpdateDoctor(e) {
-    e.preventDefault();
+  async handleUpdateDoctor(e) {
+    if (e && e.preventDefault) e.preventDefault();
     const docId = document.getElementById('editdoc-id').value;
     const name = document.getElementById('editdoc-name').value.trim();
     const spec = document.getElementById('editdoc-spec').value.trim();
 
+    if (this.useBackend) {
+      try {
+        const res = await fetch(`${API_BASE}/clinic/doctors/${docId}/update`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ name, specialization: spec })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          this.showAlert(data.error || 'Failed to update doctor.', 'danger');
+          return;
+        }
+        this.closeEditDoctorModal();
+        this.showAlert(`Doctor profile updated for ${name}.`, 'success');
+        this.setupAdminDoctorsView();
+        return;
+      } catch (err) {}
+    }
+
+    // Fallback: Local
     const doc = this.store.data.doctors.find(d => d.id === docId);
     if (!doc) return;
 
@@ -1125,9 +1369,8 @@ class ClinicApp {
     this.setupAdminDoctorsView();
   }
 
-  // FR-2.2, FR-2.3: Slot generator with overlap & past checks
-  handleGenerateSlots(e) {
-    e.preventDefault();
+  async handleGenerateSlots(e) {
+    if (e && e.preventDefault) e.preventDefault();
     const doctorId = document.getElementById('gen-doctor-select').value;
     const startDate = document.getElementById('gen-start-date').value;
     const endDate = document.getElementById('gen-end-date').value;
@@ -1140,6 +1383,36 @@ class ClinicApp {
       return;
     }
 
+    if (this.useBackend) {
+      try {
+        const res = await fetch(`${API_BASE}/clinic/slots/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            doctor_id: doctorId,
+            start_date: startDate,
+            end_date: endDate,
+            daily_start_time: startTimeStr,
+            daily_end_time: endTimeStr,
+            slot_duration_minutes: slotMinutes
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          this.showAlert(data.error || 'Slot generation failed.', 'danger');
+          return;
+        }
+        let msg = `Successfully generated ${data.generated} new slots.`;
+        if (data.skipped_overlap > 0) msg += ` ${data.skipped_overlap} overlapping slots skipped.`;
+        if (data.skipped_past > 0) msg += ` ${data.skipped_past} past slots skipped.`;
+        this.showAlert(msg, data.generated > 0 ? 'success' : 'warning');
+        this.renderAdminSlotsTable();
+        return;
+      } catch (err) {}
+    }
+
+    // Fallback: Local
     if (startDate > endDate) {
       this.showAlert('Start date cannot be after end date.', 'danger');
       return;
@@ -1167,13 +1440,11 @@ class ClinicApp {
         const slotStart = this.minutesToTime(m);
         const slotEnd = this.minutesToTime(m + slotMinutes);
 
-        // FR-2.3: Refuse slots that start in the past
         if (this.isPastTime(dateStr, slotStart)) {
           skippedPastCount++;
           continue;
         }
 
-        // FR-2.3: Refuse slots that overlap existing slot of same doctor
         const overlap = this.store.data.slots.some(s =>
           s.doctorId === doctorId &&
           s.date === dateStr &&
@@ -1211,8 +1482,8 @@ class ClinicApp {
     this.renderAdminSlotsTable();
 
     let msg = `Successfully generated ${generatedCount} new slots.`;
-    if (skippedOverlapCount > 0) msg += ` ${skippedOverlapCount} overlapping slots skipped (FR-2.3).`;
-    if (skippedPastCount > 0) msg += ` ${skippedPastCount} past slots skipped (FR-2.3).`;
+    if (skippedOverlapCount > 0) msg += ` ${skippedOverlapCount} overlapping slots skipped.`;
+    if (skippedPastCount > 0) msg += ` ${skippedPastCount} past slots skipped.`;
     this.showAlert(msg, generatedCount > 0 ? 'success' : 'warning');
   }
 
@@ -1227,33 +1498,41 @@ class ClinicApp {
     return `${h}:${m}`;
   }
 
-  // FR-2.4: Admin removes a slot that has no booking
-  renderAdminSlotsTable() {
+  async renderAdminSlotsTable() {
     const tbody = document.getElementById('admin-slots-table-body');
     const filterDoc = document.getElementById('admin-slot-filter-doc').value;
     tbody.innerHTML = '';
 
-    let slots = this.store.data.slots;
-    if (filterDoc && filterDoc !== 'ALL') {
-      slots = slots.filter(s => s.doctorId === filterDoc);
+    let slots = [];
+    if (this.useBackend) {
+      try {
+        const query = filterDoc && filterDoc !== 'ALL' ? `?doctor_id=${filterDoc}` : '';
+        // If ALL, fetch per doctor or slots
+        const res = await fetch(`${API_BASE}/clinic/slots${query}`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          slots = (data.slots || []).filter(s => s.status === 'Free');
+        }
+      } catch (e) {}
+    } else {
+      slots = this.store.data.slots.filter(s => (filterDoc === 'ALL' || s.doctorId === filterDoc) && s.status === 'Free');
     }
 
-    // Only unbooked slots shown for removal
-    const freeSlots = slots.filter(s => s.status === 'Free');
-
-    if (freeSlots.length === 0) {
+    if (slots.length === 0) {
       tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--color-ink-muted); font-style: italic; padding: 1.5rem;">No unbooked free slots to display.</td></tr>`;
       return;
     }
 
-    freeSlots.sort((a, b) => (`${a.date} ${a.startTime}`).localeCompare(`${b.date} ${b.startTime}`));
+    slots.sort((a, b) => (`${a.date} ${a.startTime}`).localeCompare(`${b.date} ${b.startTime}`));
 
-    freeSlots.slice(0, 50).forEach(slot => {
-      const doc = this.store.data.doctors.find(d => d.id === slot.doctorId);
+    slots.slice(0, 50).forEach(slot => {
+      const doc = this.useBackend ? null : this.store.data.doctors.find(d => d.id === slot.doctorId);
+      const docName = doc ? doc.name : (slot.doctorName || 'Physician');
+
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td class="cq-code">${slot.id}</td>
-        <td style="font-weight: 500;">${this.escapeHtml(doc ? doc.name : 'Unknown')}</td>
+        <td style="font-weight: 500;">${this.escapeHtml(docName)}</td>
         <td class="cq-tabular">${slot.date}</td>
         <td class="cq-tabular">${slot.startTime} &ndash; ${slot.endTime}</td>
         <td><span class="cq-status cq-status-free">Free</span></td>
@@ -1265,15 +1544,31 @@ class ClinicApp {
     });
   }
 
-  removeSlot(slotId) {
+  async removeSlot(slotId) {
+    if (this.useBackend) {
+      try {
+        const res = await fetch(`${API_BASE}/clinic/slots/${slotId}`, {
+          method: 'DELETE',
+          credentials: 'include'
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          this.showAlert(data.error || 'Cannot remove slot.', 'danger');
+          return;
+        }
+        this.showAlert(`Slot ${slotId} removed.`, 'success');
+        this.renderAdminSlotsTable();
+        return;
+      } catch (err) {}
+    }
+
+    // Fallback: Local
     const slotIndex = this.store.data.slots.findIndex(s => s.id === slotId);
     if (slotIndex === -1) return;
 
     const slot = this.store.data.slots[slotIndex];
-
-    // FR-2.4 check: only remove slot if it has no active booking
     if (slot.status !== 'Free') {
-      this.showAlert('Cannot remove slot with active booking (FR-2.4).', 'danger');
+      this.showAlert('Cannot remove a slot that has an active booking.', 'danger');
       return;
     }
 
@@ -1291,29 +1586,18 @@ class ClinicApp {
     this.renderAdminSlotsTable();
   }
 
-  // ========================================================================
-  // SCREEN 6: UI-6 All Appointments (Admin)
-  // (FR-4.4, FR-4.5)
-  // ========================================================================
+  // --- Admin All Appointments Master View ---
   setupAdminAllAppointmentsView() {
     const dateInput = document.getElementById('admin-appt-filter-date');
     if (!dateInput.value) {
       dateInput.value = this.getTodayDateString();
     }
 
-    const docSelect = document.getElementById('admin-appt-filter-doc');
-    docSelect.innerHTML = '<option value="ALL">All Clinicians</option>';
-    this.store.data.doctors.forEach(doc => {
-      const opt = document.createElement('option');
-      opt.value = doc.id;
-      opt.textContent = doc.name;
-      docSelect.appendChild(opt);
-    });
-
+    this.populateDoctorSelectOptions();
     this.renderAdminAllAppointments();
   }
 
-  renderAdminAllAppointments() {
+  async renderAdminAllAppointments() {
     const selectedDate = document.getElementById('admin-appt-filter-date').value;
     const selectedDoc = document.getElementById('admin-appt-filter-doc').value;
     const tbody = document.getElementById('admin-all-appointments-table-body');
@@ -1321,13 +1605,24 @@ class ClinicApp {
     const printMeta = document.getElementById('print-meta-info');
 
     tbody.innerHTML = '';
-
-    let appointments = this.store.data.appointments.filter(a => a.date === selectedDate);
-    if (selectedDoc !== 'ALL') {
-      appointments = appointments.filter(a => a.doctorId === selectedDoc);
-    }
-
     printMeta.textContent = `Schedule Date: ${selectedDate} | Filter: ${selectedDoc === 'ALL' ? 'All Clinicians' : selectedDoc} | Printed: ${new Date().toLocaleString()}`;
+
+    let appointments = [];
+    if (this.useBackend) {
+      try {
+        const res = await fetch(`${API_BASE}/booking/admin?date=${selectedDate}&doctor_id=${selectedDoc}`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          appointments = data.appointments || [];
+        }
+      } catch (e) {}
+    } else {
+      appointments = this.store.data.appointments.filter(a => a.date === selectedDate);
+      if (selectedDoc !== 'ALL') {
+        appointments = appointments.filter(a => a.doctorId === selectedDoc);
+      }
+      appointments.sort((a, b) => a.startTime.localeCompare(b.startTime));
+    }
 
     if (appointments.length === 0) {
       emptyNotice.style.display = 'block';
@@ -1335,11 +1630,14 @@ class ClinicApp {
     }
 
     emptyNotice.style.display = 'none';
-    appointments.sort((a, b) => a.startTime.localeCompare(b.startTime));
 
     appointments.forEach(appt => {
-      const doc = this.store.data.doctors.find(d => d.id === appt.doctorId);
-      const patient = this.store.data.users.find(u => u.id === appt.patientId);
+      const doc = this.useBackend ? null : this.store.data.doctors.find(d => d.id === appt.doctorId);
+      const patient = this.useBackend ? null : this.store.data.users.find(u => u.id === appt.patientId);
+
+      const doctorName = appt.doctorName || (doc ? doc.name : 'Unknown');
+      const patientName = appt.patientName || (patient ? patient.name : 'Unknown');
+      const patientPhone = appt.patientPhone || (patient ? patient.phone : 'Unknown');
 
       let statusBadge = '';
       if (appt.status === 'Booked') {
@@ -1353,9 +1651,9 @@ class ClinicApp {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td class="cq-tabular" style="font-weight: 600;">${appt.startTime} &ndash; ${appt.endTime}</td>
-        <td>${this.escapeHtml(doc ? doc.name : 'Unknown')}</td>
-        <td style="font-weight: 500;">${this.escapeHtml(patient ? patient.name : 'Unknown')}</td>
-        <td class="cq-tabular">${this.escapeHtml(patient ? patient.phone : 'Unknown')}</td>
+        <td>${this.escapeHtml(doctorName)}</td>
+        <td style="font-weight: 500;">${this.escapeHtml(patientName)}</td>
+        <td class="cq-tabular">${this.escapeHtml(patientPhone)}</td>
         <td>${statusBadge}</td>
         <td class="no-print" style="text-align: right;">
           ${appt.status === 'Booked' ? `
@@ -1370,14 +1668,31 @@ class ClinicApp {
     });
   }
 
-  // FR-4.5: The Admin cancels any appointment
-  adminCancelAppointment(appointmentId) {
-    const appt = this.store.data.appointments.find(a => a.id === appointmentId);
-    if (!appt) return;
-
-    if (!confirm(`Admin Override: Cancel appointment ${appt.id}? The slot will be restored to Free status.`)) {
+  async adminCancelAppointment(appointmentId) {
+    if (!confirm(`Cancel appointment ${appointmentId}? The slot will be restored to Free status.`)) {
       return;
     }
+
+    if (this.useBackend) {
+      try {
+        const res = await fetch(`${API_BASE}/booking/${appointmentId}/cancel`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          this.showAlert(data.error || 'Failed to cancel appointment.', 'danger');
+          return;
+        }
+        this.showAlert(`Appointment ${appointmentId} cancelled by administrator.`, 'success');
+        this.renderAdminAllAppointments();
+        return;
+      } catch (err) {}
+    }
+
+    // Fallback: Local
+    const appt = this.store.data.appointments.find(a => a.id === appointmentId);
+    if (!appt) return;
 
     appt.status = 'Cancelled';
     const slot = this.store.data.slots.find(s => s.id === appt.slotId);
@@ -1398,16 +1713,23 @@ class ClinicApp {
     this.renderAdminAllAppointments();
   }
 
-  // ========================================================================
-  // SCREEN 7: UI-7 Audit Log (Admin)
-  // (FR-6.1, FR-6.2, FR-6.3)
-  // ========================================================================
-  renderAdminAuditTable() {
+  // --- Audit Log ---
+  async renderAdminAuditTable() {
     const tbody = document.getElementById('admin-audit-table-body');
     tbody.innerHTML = '';
 
-    // FR-6.3: View log newest first
-    const logs = [...this.store.data.auditLogs].reverse();
+    let logs = [];
+    if (this.useBackend) {
+      try {
+        const res = await fetch(`${API_BASE}/audit/`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          logs = data.auditLogs || [];
+        }
+      } catch (e) {}
+    } else {
+      logs = [...this.store.data.auditLogs].reverse();
+    }
 
     logs.forEach(log => {
       const tr = document.createElement('tr');
@@ -1422,12 +1744,11 @@ class ClinicApp {
     });
   }
 
-  // Quick reset utility to restore clean install state
   resetData() {
-    if (confirm('Reset entire system data back to clean installation state?')) {
+    if (confirm('Reset entire system data back to initial installation state?')) {
       this.store.reset();
       this.logout(false);
-      this.showAlert('System database reset to clean installation baseline.', 'info');
+      this.showAlert('System database reset to initial installation baseline.', 'info');
     }
   }
 }

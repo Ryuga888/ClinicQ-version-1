@@ -1,8 +1,6 @@
 /* ==========================================================================
    ClinicQ — Clinical Appointment System
-   Palette: Cream (#F3EEE3) and Ink Black (#111111)
-   Design: Classical Minimalist Editorial / Medical Ledger
-   Standard Typography, Zero AI-Slop (No gradients, no glassmorphism, no fake glow)
+   Clean Minimalist Architecture
    ========================================================================== */
 
 :root {
@@ -520,7 +518,7 @@ p {
 }
 
 /* --------------------------------------------------------------------------
-   Step Indicator for Booking (NFR-13: 4 steps or fewer)
+   Step Indicator for Booking
    -------------------------------------------------------------------------- */
 .cq-steps-bar {
   display: grid;
@@ -769,7 +767,7 @@ p {
 }
 
 /* --------------------------------------------------------------------------
-   Print Stylesheet (FR-4.4: Print-friendly layout)
+   Print Stylesheet
    -------------------------------------------------------------------------- */
 @media print {
   body {
@@ -828,7 +826,7 @@ p {
 }
 
 /* --------------------------------------------------------------------------
-   Responsive (NFR-14: Usable from 360px wide)
+   Responsive Layout
    -------------------------------------------------------------------------- */
 @media (max-width: 640px) {
   .cq-brand-title {

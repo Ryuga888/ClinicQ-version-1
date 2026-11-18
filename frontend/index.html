@@ -12,7 +12,7 @@
   <div class="cq-topbar no-print">
     <div class="cq-container cq-topbar-inner">
       <div class="cq-topbar-left">
-        <span>Clinic Register System &bull; Local Outpatient Schedule</span>
+        <span>Clinic Register System &bull; Local Patient Schedule</span>
       </div>
       <div class="cq-topbar-right">
         <span id="session-container" style="display: none;">
@@ -54,9 +54,7 @@
       <button type="button" class="cq-btn cq-btn-sm" onclick="app.closeAlert()">&times;</button>
     </div>
 
-    <!-- ====================================================================
-         SCREEN 1: UI-1 Register and Login (FR-1.1, FR-1.2, FR-1.3, NFR-12)
-         ==================================================================== -->
+    <!-- Register and Login View -->
     <section id="view-auth" class="cq-view" style="display: none;">
       <div style="max-width: 480px; margin: 2rem auto;">
         
@@ -69,7 +67,7 @@
             </div>
           </div>
 
-          <!-- Failed login alert: generic message (FR-1.2) / lockout (NFR-12) -->
+          <!-- Failed login alert -->
           <div id="auth-error" class="cq-alert cq-alert-danger" style="display: none;" role="alert">
             <span id="auth-error-msg">Invalid email or password.</span>
           </div>
@@ -90,13 +88,10 @@
               <button type="submit" class="cq-btn cq-btn-primary" style="width: 100%;">Sign In</button>
             </div>
 
-            <div style="margin-top: 1.25rem; font-size: 0.8rem; color: var(--color-ink-muted); border-top: 1px solid var(--color-hairline); padding-top: 0.75rem;">
-              <p>Default installed administrator:</p>
-              <div style="font-family: var(--font-mono); margin-top: 0.25rem;">Email: <strong>admin@clinicq.local</strong> &bull; Pwd: <strong>admin</strong></div>
-            </div>
+
           </form>
 
-          <!-- Register Form (FR-1.1: Name, Email, Phone, Password) -->
+          <!-- Register Form -->
           <form id="form-register" style="display: none;" onsubmit="app.handleRegister(event)">
             <div class="cq-form-group">
               <label class="cq-label" for="reg-name">Full Name</label>
@@ -127,13 +122,10 @@
       </div>
     </section>
 
-    <!-- ====================================================================
-         SCREEN 2: UI-2 Find a Doctor & Book Slot (Patient)
-         (FR-3.1, FR-3.2, FR-3.3, FR-3.4, FR-3.6, FR-3.8, NFR-13)
-         ==================================================================== -->
+    <!-- Patient: Find a Doctor & Book Slot -->
     <section id="view-find-doctor" class="cq-view" style="display: none;">
       
-      <!-- 4-Step Indicator (NFR-13: Book in 4 steps or fewer) -->
+      <!-- 4-Step Indicator -->
       <div class="cq-steps-bar" aria-label="Booking steps">
         <div class="cq-step-item" id="step-ind-1">
           <span class="cq-step-num">Step 1</span>
@@ -176,7 +168,7 @@
           No doctor accounts have been configured yet. Clinic administrator must register physicians and generate working slots first.
         </div>
 
-        <!-- Available Slots Grid (FR-3.1) -->
+        <!-- Available Slots Grid -->
         <div id="patient-slots-container" style="margin-top: 1.5rem; display: none;">
           <div style="display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid var(--color-hairline); padding-bottom: 0.5rem;">
             <label class="cq-meta-label">2. Available Slots for Selected Date</label>
@@ -224,7 +216,7 @@
         </div>
       </div>
 
-      <!-- Step 4: Confirmed Success Receipt (FR-3.2) -->
+      <!-- Step 4: Confirmed Success Receipt -->
       <div class="cq-card" id="booking-confirmed-panel" style="display: none; border-left: 4px solid var(--color-success);">
         <div class="cq-card-header">
           <div>
@@ -263,10 +255,7 @@
 
     </section>
 
-    <!-- ====================================================================
-         SCREEN 3: UI-3 My Appointments (Patient)
-         (FR-3.5, FR-3.6, FR-3.7, NFR-7)
-         ==================================================================== -->
+    <!-- Patient: My Appointments -->
     <section id="view-patient-appointments" class="cq-view" style="display: none;">
       <div class="cq-card">
         <div class="cq-card-header">
@@ -302,10 +291,7 @@
       </div>
     </section>
 
-    <!-- ====================================================================
-         SCREEN 4: UI-4 My Schedule (Doctor)
-         (FR-4.1, FR-4.2, FR-4.3, FR-5.1, FR-5.2)
-         ==================================================================== -->
+    <!-- Doctor: My Schedule -->
     <section id="view-doctor-schedule" class="cq-view" style="display: none;">
       <div class="cq-card">
         <div class="cq-card-header">
@@ -343,10 +329,7 @@
       </div>
     </section>
 
-    <!-- ====================================================================
-         SCREEN 5: UI-5 Doctors and Slot Generator (Admin)
-         (FR-1.5, FR-2.1, FR-2.2, FR-2.3, FR-2.4)
-         ==================================================================== -->
+    <!-- Admin: Doctors and Slot Generator -->
     <section id="view-admin-doctors" class="cq-view" style="display: none;">
       
       <!-- Doctor Profiles Management -->
@@ -354,7 +337,7 @@
         <div class="cq-card-header">
           <div>
             <h2 class="cq-card-title">Doctor Rosters & Profiles</h2>
-            <p style="margin-bottom: 0;">Create and manage physician credentials and specialties (FR-1.5, FR-2.1).</p>
+            <p style="margin-bottom: 0;">Create and manage physician credentials and specialties.</p>
           </div>
           <button type="button" class="cq-btn cq-btn-sm cq-btn-primary" onclick="app.openNewDoctorModal()">+ Add New Physician</button>
         </div>
@@ -381,7 +364,7 @@
         </div>
       </div>
 
-      <!-- Slot Generator (FR-2.2, FR-2.3) -->
+      <!-- Slot Generator -->
       <div class="cq-card">
         <div class="cq-card-header">
           <div>
@@ -439,12 +422,12 @@
         </form>
       </div>
 
-      <!-- Manage & Remove Free Slots (FR-2.4) -->
+      <!-- Manage & Remove Free Slots -->
       <div class="cq-card">
         <div class="cq-card-header">
           <div>
             <h2 class="cq-card-title">Manage Unbooked Slots</h2>
-            <p style="margin-bottom: 0;">Remove free slots with no active patient booking (FR-2.4).</p>
+            <p style="margin-bottom: 0;">Remove free slots with no active patient booking.</p>
           </div>
           <div>
             <label class="cq-label" for="admin-slot-filter-doc">Filter by Doctor:</label>
@@ -475,10 +458,7 @@
 
     </section>
 
-    <!-- ====================================================================
-         SCREEN 6: UI-6 All Appointments (Admin)
-         (FR-4.4, FR-4.5)
-         ==================================================================== -->
+    <!-- Admin: All Appointments Master View -->
     <section id="view-admin-all-appointments" class="cq-view" style="display: none;">
       
       <!-- Print Header (Visible only when printed) -->
@@ -535,18 +515,15 @@
       </div>
     </section>
 
-    <!-- ====================================================================
-         SCREEN 7: UI-7 Audit Log (Admin)
-         (FR-6.1, FR-6.2, FR-6.3)
-         ==================================================================== -->
+    <!-- Admin: Audit Log -->
     <section id="view-admin-audit" class="cq-view" style="display: none;">
       <div class="cq-card">
         <div class="cq-card-header">
           <div>
             <h2 class="cq-card-title">Security & Clinical Audit Log</h2>
-            <p style="margin-bottom: 0;">Immutable append-only record of sensitive actions, ordered newest first (FR-6.1 &ndash; FR-6.3).</p>
+            <p style="margin-bottom: 0;">Append-only record of system activity, ordered newest first.</p>
           </div>
-          <span class="cq-status cq-status-completed">Append-Only Active</span>
+          <span class="cq-status cq-status-completed">Active</span>
         </div>
 
         <div class="cq-table-wrapper">
@@ -570,11 +547,7 @@
 
   </main>
 
-  <!-- ====================================================================
-       MODALS & DRAWERS
-       ==================================================================== -->
-
-  <!-- Consultation Notes Modal (FR-5.1, FR-5.2) strictly for treating doctor -->
+  <!-- Consultation Notes Modal strictly for treating doctor -->
   <div id="modal-notes" class="cq-modal-backdrop no-print" role="dialog" aria-modal="true" aria-labelledby="modal-notes-title">
     <div class="cq-modal-dialog">
       <div class="cq-modal-header">
@@ -582,7 +555,7 @@
         <button type="button" class="cq-btn cq-btn-sm" onclick="app.closeNotesModal()">&times;</button>
       </div>
       <p style="font-size: 0.8rem; color: var(--color-ink-muted); margin-bottom: 1rem;">
-        Confidential medical record. Visible <strong>exclusively</strong> to the treating clinician (FR-5.2). Patients and administrators cannot view this data.
+        Confidential medical record. Visible <strong>exclusively</strong> to the treating clinician. Patients and administrators cannot view this data.
       </p>
 
       <form onsubmit="app.handleSaveNote(event)">
@@ -601,7 +574,7 @@
     </div>
   </div>
 
-  <!-- Create Doctor Account Modal (FR-1.5, FR-2.1) -->
+  <!-- Create Doctor Account Modal -->
   <div id="modal-new-doctor" class="cq-modal-backdrop no-print" role="dialog" aria-modal="true" aria-labelledby="modal-new-doc-title">
     <div class="cq-modal-dialog">
       <div class="cq-modal-header">
@@ -643,7 +616,7 @@
     </div>
   </div>
 
-  <!-- Edit Doctor Profile Modal (FR-2.1) -->
+  <!-- Edit Doctor Profile Modal -->
   <div id="modal-edit-doctor" class="cq-modal-backdrop no-print" role="dialog" aria-modal="true" aria-labelledby="modal-edit-doc-title">
     <div class="cq-modal-dialog">
       <div class="cq-modal-header">
@@ -670,17 +643,6 @@
       </form>
     </div>
   </div>
-
-  <!-- Footer -->
-  <footer class="cq-footer no-print">
-    <div class="cq-container cq-footer-inner">
-      <span>ClinicQ v1.0 &bull; Conforms to IEEE 830 Clinical PRD Specifications</span>
-      <div style="display: flex; align-items: center; gap: 1rem;">
-        <span>Cream #F3EEE3 &amp; Ink Black #111111 Editorial Minimalism</span>
-        <button type="button" class="cq-btn cq-btn-sm cq-btn-secondary" onclick="app.resetData()" title="Reset storage back to initial installation baseline">Reset to Install Baseline</button>
-      </div>
-    </div>
-  </footer>
 
   <!-- Scripts -->
   <script src="data.js"></script>

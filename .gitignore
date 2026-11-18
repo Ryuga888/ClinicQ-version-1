@@ -17,6 +17,7 @@ __pycache__/
 *$py.class
 venv/
 .env
+*.sqlite3
 
 # ClinicQ Agent local logs
 .agent/
