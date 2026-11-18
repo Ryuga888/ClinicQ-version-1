@@ -21,3 +21,6 @@ venv/
 
 # ClinicQ Agent local logs
 .agent/
+
+# Test files with credentials / confidential data
+test_system_e2e.py
